@@ -1,0 +1,284 @@
+From ae7b79ff8a7fb576c018bc9a7eaf9e135b7b553e Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Tue, 24 Apr 2018 10:57:48 +0200
+Subject: [PATCH 36/40] libblkid: add BitLocker detection
+
+Supported:
+* WinVista version
+* Win7 and later versions (based on NTFS)
+* BitLockerToGo (for removable media; based on FAT32)
+
+Unfortunately, it's without LABEL and UUID. It seems BitLocker does
+not use volume_label and volume_serial stuff from NTFS header.
+
+Upstream: http://github.com/karelzak/util-linux/commit/136f89ce5ed8cd159a1c56b5a775dada2363ecd3
+Upstream: http://github.com/karelzak/util-linux/commit/47afae0caaa2b3440d6ac812079e3ada5f2aa0bd (bitlocker.c part)
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1812576
+Addresses: https://github.com/karelzak/util-linux/issues/617
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ libblkid/src/Makemodule.am             |   1 +
+ libblkid/src/superblocks/bitlocker.c   | 191 +++++++++++++++++++++++++
+ libblkid/src/superblocks/superblocks.c |   1 +
+ libblkid/src/superblocks/superblocks.h |   3 +
+ libblkid/src/superblocks/vfat.c        |   3 +
+ 5 files changed, 199 insertions(+)
+ create mode 100644 libblkid/src/superblocks/bitlocker.c
+
+diff --git a/libblkid/src/Makemodule.am b/libblkid/src/Makemodule.am
+index 0e1c765fb..ea0230702 100644
+--- a/libblkid/src/Makemodule.am
++++ b/libblkid/src/Makemodule.am
+@@ -47,6 +47,7 @@ libblkid_la_SOURCES = \
+ 	libblkid/src/superblocks/bcache.c \
+ 	libblkid/src/superblocks/befs.c \
+ 	libblkid/src/superblocks/bfs.c \
++	libblkid/src/superblocks/bitlocker.c \
+ 	libblkid/src/superblocks/btrfs.c \
+ 	libblkid/src/superblocks/cramfs.c \
+ 	libblkid/src/superblocks/ddf_raid.c \
+diff --git a/libblkid/src/superblocks/bitlocker.c b/libblkid/src/superblocks/bitlocker.c
+new file mode 100644
+index 000000000..111edf39b
+--- /dev/null
++++ b/libblkid/src/superblocks/bitlocker.c
+@@ -0,0 +1,191 @@
++/*
++ * Copyright (C) 2018 Karel Zak <kzak@redhat.com>
++ *
++ * This file may be redistributed under the terms of the
++ * GNU Lesser General Public License.
++ */
++#include <stdio.h>
++#include <stdlib.h>
++#include <unistd.h>
++#include <string.h>
++#include <errno.h>
++#include <ctype.h>
++#include <stdint.h>
++
++#include "superblocks.h"
++
++#define BDE_HDR_SIZE	512
++#define BDE_HDR_OFFSET	0
++
++struct bde_header_win7 {
++/*   0 */ unsigned char	boot_entry_point[3];
++/*   3 */ unsigned char	fs_signature[8];
++/*  11 */ unsigned char	__dummy1[67 - 11];
++/*  67 */ uint32_t      volume_serial;		/* NTFS uses 64bit serial number */
++/*  71 */ unsigned char volume_label[11];	/* "NO NAME\x20\x20\x20\x20" only */
++/*  82 */ unsigned char __dummy2[160 - 82];
++/* 160 */ unsigned char guid[16];		/* BitLocker specific GUID */
++/* 176 */ uint64_t      fve_metadata_offset;
++} __attribute__((packed));
++
++
++struct bde_header_togo {
++/*   0 */ unsigned char	boot_entry_point[3];
++/*   3 */ unsigned char	fs_signature[8];
++/*  11 */ unsigned char	__dummy[424 - 11];
++/* 424 */ unsigned char guid[16];
++/* 440 */ uint64_t      fve_metadata_offset;
++} __attribute__((packed));
++
++
++struct bde_fve_metadata {
++/*   0 */ unsigned char  signature[8];
++/*   8 */ uint16_t       size;
++/*  10 */ uint16_t       version;
++};
++
++enum {
++	BDE_VERSION_VISTA = 0,
++	BDE_VERSION_WIN7,
++	BDE_VERSION_TOGO
++};
++
++#define BDE_MAGIC_VISTA		"\xeb\x52\x90-FVE-FS-"
++#define BDE_MAGIC_WIN7		"\xeb\x58\x90-FVE-FS-"
++#define BDE_MAGIC_TOGO		"\xeb\x58\x90MSWIN4.1"
++
++#define BDE_MAGIC_FVE		"-FVE-FS-"
++
++static int get_bitlocker_type(const unsigned char *buf)
++{
++	size_t i;
++	static const char *map[] = {
++		[BDE_VERSION_VISTA] = BDE_MAGIC_VISTA,
++		[BDE_VERSION_WIN7]  = BDE_MAGIC_WIN7,
++		[BDE_VERSION_TOGO]  = BDE_MAGIC_TOGO
++	};
++
++	for (i = 0; i < ARRAY_SIZE(map); i++) {
++		if (memcmp(buf, map[i], 11) == 0)
++			return (int) i;
++	}
++
++	return -1;
++}
++
++/* Returns: < 0 error, 1 nothing, 0 success
++ */
++static int get_bitlocker_headers(blkid_probe pr,
++				int *type,
++				const unsigned char **buf_hdr,
++				const unsigned char **buf_fve)
++{
++
++	const unsigned char *buf;
++	const struct bde_fve_metadata *fve;
++	uint64_t off = 0;
++	int kind;
++
++	if (buf_hdr)
++		*buf_hdr = NULL;
++	if (buf_fve)
++		*buf_fve = NULL;
++	if (type)
++		*type = -1;
++
++	buf = blkid_probe_get_buffer(pr, BDE_HDR_OFFSET, BDE_HDR_SIZE);
++	if (!buf)
++		return errno ? -errno : 1;
++
++	kind = get_bitlocker_type(buf);
++
++	/* Check BitLocker header */
++	switch (kind) {
++	case BDE_VERSION_WIN7:
++		off = le64_to_cpu(((const struct bde_header_win7 *) buf)->fve_metadata_offset);
++		break;
++	case BDE_VERSION_TOGO:
++		off = le64_to_cpu(((const struct bde_header_togo *) buf)->fve_metadata_offset);
++		break;
++	case BDE_VERSION_VISTA:
++		goto done;
++	default:
++		goto nothing;
++	}
++
++	if (!off)
++		goto nothing;
++	if (buf_hdr)
++		*buf_hdr = buf;
++
++	/* Check Bitlocker FVE metadata header */
++	buf = blkid_probe_get_buffer(pr, off, sizeof(struct bde_fve_metadata));
++	if (!buf)
++		return errno ? -errno : 1;
++
++	fve = (const struct bde_fve_metadata *) buf;
++	if (memcmp(fve->signature, BDE_MAGIC_FVE, sizeof(fve->signature)) != 0)
++		goto nothing;
++	if (buf_fve)
++		*buf_fve = buf;
++done:
++	if (type)
++		*type = kind;
++	return 0;
++nothing:
++	return 1;
++}
++
++/*
++ * This is used by vFAT and NTFS prober to avoid collisions with bitlocker.
++ */
++int blkid_probe_is_bitlocker(blkid_probe pr)
++{
++	return get_bitlocker_headers(pr, NULL, NULL, NULL) == 0;
++}
++
++static int probe_bitlocker(blkid_probe pr,
++		const struct blkid_idmag *mag __attribute__((__unused__)))
++{
++	const unsigned char *buf_fve = NULL;
++	const unsigned char *buf_hdr = NULL;
++	int rc, kind;
++
++	rc = get_bitlocker_headers(pr, &kind, &buf_hdr, &buf_fve);
++	if (rc)
++		return rc;
++
++	if (kind == BDE_VERSION_WIN7) {
++		const struct bde_header_win7 *hdr = (const struct bde_header_win7 *) buf_hdr;
++
++		/* Unfortunately, it seems volume_serial is always zero */
++		blkid_probe_sprintf_uuid(pr,
++				(const unsigned char *) &hdr->volume_serial,
++				sizeof(hdr->volume_serial),
++				"%016d", le32_to_cpu(hdr->volume_serial));
++	}
++
++	if (buf_fve) {
++		const struct bde_fve_metadata *fve = (const struct bde_fve_metadata *) buf_fve;
++
++		blkid_probe_sprintf_version(pr, "%d", fve->version);
++	}
++	return 0;
++}
++
++/* See header details:
++ * https://github.com/libyal/libbde/blob/master/documentation/BitLocker%20Drive%20Encryption%20(BDE)%20format.asciidoc
++ */
++const struct blkid_idinfo bitlocker_idinfo =
++{
++	.name		= "BitLocker",
++	.usage		= BLKID_USAGE_CRYPTO,
++	.probefunc	= probe_bitlocker,
++	.magics		=
++	{
++		{ .magic = BDE_MAGIC_VISTA, .len = 11 },
++		{ .magic = BDE_MAGIC_WIN7,  .len = 11 },
++		{ .magic = BDE_MAGIC_TOGO,  .len = 11 },
++		{ NULL }
++	}
++};
+diff --git a/libblkid/src/superblocks/superblocks.c b/libblkid/src/superblocks/superblocks.c
+index 076541d1a..6dfd2be64 100644
+--- a/libblkid/src/superblocks/superblocks.c
++++ b/libblkid/src/superblocks/superblocks.c
+@@ -115,6 +115,7 @@ static const struct blkid_idinfo *idinfos[] =
+ 	&ubi_idinfo,
+ 	&vdo_idinfo,
+ 	&stratis_idinfo,
++	&bitlocker_idinfo,
+ 
+ 	/* Filesystems */
+ 	&vfat_idinfo,
+diff --git a/libblkid/src/superblocks/superblocks.h b/libblkid/src/superblocks/superblocks.h
+index 2723fb1d5..d677f85bc 100644
+--- a/libblkid/src/superblocks/superblocks.h
++++ b/libblkid/src/superblocks/superblocks.h
+@@ -81,6 +81,7 @@ extern const struct blkid_idinfo bcache_idinfo;
+ extern const struct blkid_idinfo mpool_idinfo;
+ extern const struct blkid_idinfo vdo_idinfo;
+ extern const struct blkid_idinfo stratis_idinfo;
++extern const struct blkid_idinfo bitlocker_idinfo;
+ 
+ /*
+  * superblock functions
+@@ -105,4 +106,6 @@ extern int blkid_probe_set_id_label(blkid_probe pr, const char *name,
+ extern int blkid_probe_set_utf8_id_label(blkid_probe pr, const char *name,
+ 			     unsigned char *data, size_t len, int enc);
+ 
++extern int blkid_probe_is_bitlocker(blkid_probe pr);
++
+ #endif /* _BLKID_SUPERBLOCKS_H */
+diff --git a/libblkid/src/superblocks/vfat.c b/libblkid/src/superblocks/vfat.c
+index 3aeba018a..29b3c501c 100644
+--- a/libblkid/src/superblocks/vfat.c
++++ b/libblkid/src/superblocks/vfat.c
+@@ -268,6 +268,9 @@ static int fat_valid_superblock(blkid_probe pr,
+ 		}
+ 	}
+ 
++	if (blkid_probe_is_bitlocker(pr))
++		return 0;
++
+ 	return 1;	/* valid */
+ }
+ 
+-- 
+2.25.4
+

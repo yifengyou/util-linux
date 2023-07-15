@@ -1,0 +1,149 @@
+From 78be9c320883e77c2b5fdc676277a51efc98c723 Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Tue, 13 Oct 2020 16:29:19 +0200
+Subject: tests: update atari blkid tests
+
+The old images of the atari label are truncated and in-table stored
+sizes do not match with real images sizes -- libblkid checks it now.
+
+I have no idea how to generate ICD format, let's ignore it in tests
+for now.
+
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=2060030
+Upstream: http://github.com/util-linux/util-linux/commit/0d061b6e68bc74ce7d61524097b5d0f3becee437
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ tests/expected/blkid/lowprobe-pt-atari-icd     |   8 --------
+ tests/expected/blkid/lowprobe-pt-atari-primary |   3 +++
+ tests/expected/blkid/lowprobe-pt-atari-xgm     |  10 +++-------
+ tests/ts/blkid/images-pt/atari-icd.img.xz      | Bin 1920 -> 0 bytes
+ tests/ts/blkid/images-pt/atari-primary.img.xz  | Bin 0 -> 932 bytes
+ tests/ts/blkid/images-pt/atari-xgm.img.xz      | Bin 1920 -> 956 bytes
+ 6 files changed, 6 insertions(+), 15 deletions(-)
+ delete mode 100644 tests/expected/blkid/lowprobe-pt-atari-icd
+ create mode 100644 tests/expected/blkid/lowprobe-pt-atari-primary
+ delete mode 100644 tests/ts/blkid/images-pt/atari-icd.img.xz
+ create mode 100644 tests/ts/blkid/images-pt/atari-primary.img.xz
+
+diff --git a/tests/expected/blkid/lowprobe-pt-atari-icd b/tests/expected/blkid/lowprobe-pt-atari-icd
+deleted file mode 100644
+index 29942b123..000000000
+--- a/tests/expected/blkid/lowprobe-pt-atari-icd
++++ /dev/null
+@@ -1,8 +0,0 @@
+-size: 8388608, sector size: 512, PT: atari, offset: 0, id=(null)
+----
+-#1:         65       4032  0x0 type='FAT'
+-#2:       4097        904  0x0 type='FOO'
+-#4:      12289       4096  0x0 type='BAR'
+-#5:       5002       1999  0x0 type='GEM'
+-#6:       7003       3238  0x0 type='RAW'
+-#7:      10241       2048  0x0 type='RAW'
+diff --git a/tests/expected/blkid/lowprobe-pt-atari-primary b/tests/expected/blkid/lowprobe-pt-atari-primary
+new file mode 100644
+index 000000000..472821e47
+--- /dev/null
++++ b/tests/expected/blkid/lowprobe-pt-atari-primary
+@@ -0,0 +1,3 @@
++size: 5242880, sector size: 512, PT: atari, offset: 0, id=(null)
++---
++#1:          2      10238  0x0 type='RAW'
+diff --git a/tests/expected/blkid/lowprobe-pt-atari-xgm b/tests/expected/blkid/lowprobe-pt-atari-xgm
+index 4b7756655..a7dae6995 100644
+--- a/tests/expected/blkid/lowprobe-pt-atari-xgm
++++ b/tests/expected/blkid/lowprobe-pt-atari-xgm
+@@ -1,8 +1,4 @@
+-size: 8388608, sector size: 512, PT: atari, offset: 0, id=(null)
++size: 5242880, sector size: 512, PT: atari, offset: 0, id=(null)
+ ---
+-#1:         65       4032  0x0 type='FAT'
+-#2:       4097        904  0x0 type='FOO'
+-#3:       5002       1999  0x0 type='GEM'
+-#4:       7003       3238  0x0 type='RAW'
+-#5:      10241       2048  0x0 type='RAW'
+-#6:      12289       4096  0x0 type='BAR'
++#1:          2          9  0x0 type='RAW'
++#2:         14      10226  0x0 type='RAW'
+diff --git a/tests/ts/blkid/images-pt/atari-icd.img.xz b/tests/ts/blkid/images-pt/atari-icd.img.xz
+deleted file mode 100644
+index 00a2aba49a8f940c35b788fd693f966a31cd1aaf..0000000000000000000000000000000000000000
+GIT binary patch
+literal 0
+HcmV?d00001
+
+literal 1920
+zcmexsUKJ6=z`*kC+7>q^21Q0O1_p)_{ilon|NqLI8OvZIducK^<D#q<ONrmzr7PMy
+z=Re+dD(FN^i0Z8=QGYU3)3SOsKNYUE<teKW$h*z@Da6KG##!?D_SzK}=ewS=QwkRf
+zxzbX}@_f!Z)%e<woF9|fYR|0lp0G0f`-gY``AxPJey<QwNW16%FSdP&)8+C%F~2I4
+z{_B6tP6!P7a!FyfvS6dFJIf=9>Ecg5@jkusTr=nRy9*!Bn(bM`eR*oT<-}u76EuU~
+zr&{jenxVc;S-qm~ZIsPAhf|HgcYYYo_5QBSWhxk^uDJZlk@ka|=4h`oy~sXG;MryA
+zIO|(4yiWFOUJ0<66IC1R`kF;$<I9dcO@CDFABkD|MgDka?b)(bopIG?ZiRV5-5&#5
+z&wrJCJMneM`)PcKG6n8Gn6muo+=$TV!;Z6dyb-VXef4neVW0EN5;oQihkrbEc=K@o
+zx0jV2|I?>O2rLg_J2GWu-_F>bn|D|)EpJ!*v${KQj{VzR>(-u`|K~x`ZzH*T0p2&o
+zI-4YzQ@78Q>MqMUn_j_J&?R}Ab%JX4g_GgC#kn_Er2N@;{G{oT!>g3%?{7LTl&~r1
+z*sPkJ_H4EL-ks8A5cG>Zb+_(`db`H=OHtd`KiM;({>U6}*_GC3*O{IFD%<~0_S{B}
+zIAt^L!kb^-#2H7;7G8c(H`jXWaenqoR^eP0x0jjMz0;S=ntyt=$t<^43C^Wa`_>-0
+zn)7LCqnV7@rul}KIZjS|we9MTwfEKjD!a`sVqAVcbjH02iV_QaLoQ$Lm6>2)J5?)m
+z+4ZM<_KLr<4xZ|{k^g93P-0R3!R;b!3l;9v+iG1rUa|31OFLJ<z4Fz~B8qtzuU37w
+z6A4Z#TNC-@X*4Ux&*Qh&{`noGU2;|~TEXe(-C)}vnkk&t4X3qo?r*jJaAdDu{3?Ds
+z?=+_g!hHV)CjTg`i2T8Q_Wx83H~y7>YVQ4>WuO;!puhEVbK`;3BdWnazD_hVWL>)9
+zUH-uWUw59169reTO_1GnZlk(HOk~^3w4jK6F9(a&E)Q>o&j0_BF`3~_aq#lL`_|PM
+zO3mNiYnWFsZ@F^(8;#Sg7pKnXs?(bINxk&D<N>xBzBB&bSbuc_Kc+u-9hd96{dU62
+zdy9&v9!&J;nWpuKafAQ2KRiy8H+G)6azfr>>9!ZUEsJ{hn{EH;vMu55vVwblapfAb
+zxMqapUGF~CVIOb!`-J}sVcYGG8+IwL_`%kF^K1PzUTOPUszzJx7yZuII0hq?niBJy
+ztHO<bZHoEeb??p39f4v$CnZ^ZH?w&9HG2Bb3&qh5R7@FV8>i*X|1ZF(LqR~lKc93~
+zM{UwbNSDCeSh)377bwKEDG0HlkOiq$@C5SPZ)#xt%D~Ft{N&Fs28N&OuDBU3?>)l6
+bc!#f{p@D_bU0QSFk@Vk8z<QQ}B{B*CjfKee
+
+diff --git a/tests/ts/blkid/images-pt/atari-primary.img.xz b/tests/ts/blkid/images-pt/atari-primary.img.xz
+new file mode 100644
+index 0000000000000000000000000000000000000000..6f915fa8ad96578f32b0daeeb92d438046482478
+GIT binary patch
+literal 932
+zcmexsUKJ6=z`*kC+7>q^21Q0O1_p)_{ilon|NG21IhKJT|L>o5D`zuK%~gJC<+=Ii
+zjxFDrre11~o8UX~^*sr`-ND)CA`-a`g{vlPsQ4ms_SS~eoI5Q;loOk08+!D2evoWh
+za^cV`_b30BuKD=6`BwT2=4;0@BCk29bN`)lS>&4=``*}-hYFe|Np9+Tq~OEO|Ip}x
+zJ4;5zolM)LTaTWs>#-B)sg`FET(veqcGtO$>Jl-LZ7<V;BKEy3TNC-@X*4Ux&*Qh&
+z{`noGU2;|~TEXe(-C)}vnkk&t4X3qo?r*jJaAdDu{3?Ds?=+_g!hHV)CjTg`i2T8Q
+z_Wx83H~y7>YVQ4>WuO;!puhEVbK`;3BdWnazD_hVWL>)9UH-uWUw59169<{qE8fUY
+zo&R5eQJdjSaq#lL`_|PMO3mNiYnWFsZ@F^(8;#Sg7pKnXs?(bINxk&D<N>xBzBB&b
+zSbuc_{}AvSO=2{V-+t2s#$OCG2V;Pp`LJObFuO6V(c5<Fu|Ufz2FCwv4GjmFGA4R9
+PZak9yn+YVz5*Y;mtR2mT
+
+literal 0
+HcmV?d00001
+
+diff --git a/tests/ts/blkid/images-pt/atari-xgm.img.xz b/tests/ts/blkid/images-pt/atari-xgm.img.xz
+index bc2b8f94a77f5015ef7f91bb8acdc9950c8be7ad..a98c02de943eb1f70c5d09b7812fd237b0facb1b 100644
+GIT binary patch
+delta 254
+zcmV<a00IAi54;DE8h=*-t6cy9Z~gqPsha_nZ6oD6NwupI8`mp<%bF(xLvD5Rc8W7`
+zX)WzPD$MTS!%B(|Y-}5#$Apx#1e(KC*{Pqmx)SsG9Xw0f%eaQXL!_kre&U)tNOpTG
+z*`SUYP}mJ59xhhp;RT@IihuacmkuJPZKAP=s%k;MCh}UW4>G(m3T!1071TaDPc176
+z%r3#|+u3QZtfaEW{3%z$%QU-cGO>PfMsWxu0c{gkG*2F%lPd=M1Y0KMdb1z~F#!dT
+z0hR!nlZ*pGlY9kID9q|Q?7#p305pfRGwmY1>Hq<k2Y`UU0`E1BSh2)s`vL#}000D8
+ET8n^h+5i9m
+
+delta 911
+zcmV;A191Gj2Y?Td8h`ZzXk7p_9nzBv0itSzIT-tkb*P7lpX0X5Qpj9XCEAo){And-
+zYK<xKajiWJc6bnO+XeDeJWCuy8RxfssL`KA%041j5>(WLc?9R2t|ec6RBZT@27Sz`
+zOOUBo_werj4>Y!M_jnW_X5LT!U5BJX(|7z_`gvmiFY#+&QGZnQ(jc275rI8N1mYN%
+z7v%B{<<#dXY{%}<@y#~8tP9hXhdGhPLXas^?`1i>3YaIhBPV!{?OHspK+1tr-1sq_
+zOZO`ZH4#=PA*a;DhrzO(E3P%s2bvJ((;Hqp+UQEjk15npIGkF2Q$_0pB(dp;yn_5C
+zKjIcSPFeWwJAX-pwI>0p^9vxJ5{vOrh0paF?UCzL@0Je2X%OGwl&9sLSXEoYL7KSi
+z7kK;C!)?P%&jT1dJAlLZ<v{G=zxL^Qi2rAoSP-XF2E>%9j=5dAv$#2>cZVkYtBX;b
+zKkd4%t<0bN;Bxyi9^Oz(*%pa{7z1UunHr0BY|UqQ4u5cp8OsHbC2P>hSGyMrvv_3u
+zzQ@Tm#KWp1pTB~~5@51y#+rP&KL&li?#e9y5l&so-G1aJhbZ^bTDPy{ypVsyoJ$?4
+zJI$^(&-ERT{vFP-2wo#L3vt=>>|Qfkn-izOEp0os#}5b6I#&uf+o6-(AknAKCP^m+
+zEB^#2tYI)UL`(v`beQMaSJV*sS*EXE2$I<^GcOj!0Hii26j3aN*&gGTU5Zv+1i&@u
+zjId2o5C}?3I%5GFBrU@lP*l(vtk2>ZTe5<OTkisoMjv{FPqwYL0GjR*a@n;|`0^i<
+zKLLl6&;loud;(qxcU-f=pa1azVUhzvSGva@irejwsotqou2fu#X_{6NcY&beo68>f
+z$zE{PRc+w5GMeW^E4f@oa+%ryKCLFeKmd=m8Cq32;k}|hR%L!j^w4xxgPa6z%)Qy@
+zimjI||1RsAlMMk+M<v-$($uIxLJsc(-~zF}Sj>(8o4AFk??@Qc3})r~lth`4dR`1>
+z^;L1tHfbGi`%8!rY(mS3KU@Hh&`z%=D3oy@J&z>elMn+h2}%2(tDpZ60W6XOI|uL2
+zV$Ccjl9Rv!H<Nq<dy{+uH3@OG>WZKL5CJQa1C*2A0vVHh0)H=n0rda{07K;b`Tzg`
+l001+77wRp|PznG6*$#k!fCRGE)_JkSXZr#G00004Sz1dOv2XwY
+
+-- 
+2.36.1
+

@@ -1,0 +1,48 @@
+From aecaffc55dd763c34f61937b2047f0aaaeb4e6fc Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Thu, 6 Aug 2020 11:32:33 +0200
+Subject: [PATCH 66/74] libfdisk: fix fdisk_reread_changes() for extended
+ partitions
+
+Linux kernel assumes only 1KiB extended partition to avoid overlapping
+with nested logical partitions. We need to follow this rule for
+BLKPG_ADD_PARTITION.
+
+Addresses: https://github.com/karelzak/util-linux/issues/1112
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=2041498
+Upstream: http://github.com/util-linux/util-linux/commit/33f50706fd7c1c5e53f8f355f12b685c6935f5a4
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ libfdisk/src/context.c | 13 ++++++++++++-
+ 1 file changed, 12 insertions(+), 1 deletion(-)
+
+diff --git a/libfdisk/src/context.c b/libfdisk/src/context.c
+index fe7eb9e7e..114101980 100644
+--- a/libfdisk/src/context.c
++++ b/libfdisk/src/context.c
+@@ -867,10 +867,21 @@ int fdisk_reread_changes(struct fdisk_context *cxt, struct fdisk_table *org)
+ 		}
+ 	}
+ 	for (i = 0; i < nadds; i++) {
++		uint64_t sz;
++
+ 		pa = add[i];
++		sz = pa->size * ssf;
++
+ 		DBG(PART, ul_debugobj(pa, "#%zu calling BLKPG_ADD_PARTITION", pa->partno));
++
++		if (fdisk_is_label(cxt, DOS) && fdisk_partition_is_container(pa))
++			/* Let's follow the Linux kernel and reduce
++                         * DOS extended partition to 1 or 2 sectors.
++			 */
++			sz = min(sz, (uint64_t) 2);
++
+ 		if (partx_add_partition(cxt->dev_fd, pa->partno + 1,
+-					pa->start * ssf, pa->size * ssf) != 0) {
++					pa->start * ssf, sz) != 0) {
+ 			fdisk_warn(cxt, _("Failed to add partition %zu to system"), pa->partno + 1);
+ 			err++;
+ 		}
+-- 
+2.31.1
+

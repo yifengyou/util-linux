@@ -1,0 +1,53 @@
+From 2348779e225dd581c32c00108e017f5c1924e706 Mon Sep 17 00:00:00 2001
+From: Samanta Navarro <ferivoz@riseup.net>
+Date: Sun, 8 Nov 2020 11:45:18 +0000
+Subject: libblkid: allow a lot of mac partitions
+
+If the map count is set to INT_MAX then the for loop does not stop
+because its check is never false.
+
+I have not found a correct upper limit. The other partition logics have
+a maximum amount (exception is atari.c).
+
+The loop itself wouldn't be endless. If the iteration reaches block 0
+then the signature will be wrong. This means that map count = INT_MAX
+case would fail even if such a setup would be correct on disk.
+
+Upstream: http://github.com/util-linux/util-linux/commit/8f22adaaf30e9fd3bf83da0213b4a6525c9305cd
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=2060030
+Signed-off-by: Samanta Navarro <ferivoz@riseup.net>
+---
+ libblkid/src/partitions/mac.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/libblkid/src/partitions/mac.c b/libblkid/src/partitions/mac.c
+index 4713d6042..2be91a620 100644
+--- a/libblkid/src/partitions/mac.c
++++ b/libblkid/src/partitions/mac.c
+@@ -123,12 +123,12 @@ static int probe_mac_pt(blkid_probe pr,
+ 	ssf = block_size / 512;
+ 	nblks = be32_to_cpu(p->map_count);
+ 
+-	for (i = 1; i <= nblks; ++i) {
++	for (i = 0; i < nblks; ++i) {
+ 		blkid_partition par;
+ 		uint32_t start;
+ 		uint32_t size;
+ 
+-		p = (struct mac_partition *) get_mac_block(pr, block_size, i);
++		p = (struct mac_partition *) get_mac_block(pr, block_size, i + 1);
+ 		if (!p) {
+ 			if (errno)
+ 				return -errno;
+@@ -141,7 +141,7 @@ static int probe_mac_pt(blkid_probe pr,
+ 			DBG(LOWPROBE, ul_debug(
+ 				"mac: inconsistent map_count in partition map, "
+ 				"entry[0]: %d, entry[%d]: %d",
+-				nblks, i - 1,
++				nblks, i,
+ 				be32_to_cpu(p->map_count)));
+ 		}
+ 
+-- 
+2.36.1
+

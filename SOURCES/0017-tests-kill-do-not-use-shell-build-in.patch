@@ -1,0 +1,99 @@
+From 47b0f3480a88be94ef73973e73ad9f7fb8258cad Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Mon, 4 Mar 2019 17:28:15 +0100
+Subject: [PATCH 17/19] tests: (kill) do not use shell build-in
+
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1681062
+Upstream: http://github.com/karelzak/util-linux/commit/2fadcded53add5b5b0ca7071f310a0f37c711c51
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ tests/ts/kill/all_processes  | 5 +++++
+ tests/ts/kill/name_to_number | 5 +++++
+ tests/ts/kill/options        | 5 +++++
+ tests/ts/kill/print_pid      | 5 +++++
+ tests/ts/kill/queue          | 5 +++++
+ 5 files changed, 25 insertions(+)
+
+diff --git a/tests/ts/kill/all_processes b/tests/ts/kill/all_processes
+index 2596ef02b..7a0c95931 100755
+--- a/tests/ts/kill/all_processes
++++ b/tests/ts/kill/all_processes
+@@ -20,6 +20,11 @@ ts_init "$*"
+ 
+ ts_skip_nonroot
+ 
++# make sure we do not use shell built-in command
++if [ "$TS_USE_SYSTEM_COMMANDS" == "yes" ]; then
++	TS_CMD_KILL="/bin/kill"
++fi
++
+ ts_check_test_command "$TS_CMD_KILL"
+ ts_check_test_command "$TS_HELPER_SIGRECEIVE"
+ 
+diff --git a/tests/ts/kill/name_to_number b/tests/ts/kill/name_to_number
+index cde55c9ed..fd2aaafe0 100755
+--- a/tests/ts/kill/name_to_number
++++ b/tests/ts/kill/name_to_number
+@@ -18,6 +18,11 @@ TS_DESC="name_to_number"
+ . "$TS_TOPDIR/functions.sh"
+ ts_init "$*"
+ 
++# make sure we do not use shell built-in command
++if [ "$TS_USE_SYSTEM_COMMANDS" == "yes" ]; then
++	TS_CMD_KILL="/bin/kill"
++fi
++
+ ts_check_test_command "$TS_CMD_KILL"
+ ts_check_test_command "$TS_HELPER_SIGRECEIVE"
+ 
+diff --git a/tests/ts/kill/options b/tests/ts/kill/options
+index 2c82bbccc..ee9e52f47 100755
+--- a/tests/ts/kill/options
++++ b/tests/ts/kill/options
+@@ -18,6 +18,11 @@ TS_DESC="options"
+ . "$TS_TOPDIR/functions.sh"
+ ts_init "$*"
+ 
++# make sure we do not use shell built-in command
++if [ "$TS_USE_SYSTEM_COMMANDS" == "yes" ]; then
++	TS_CMD_KILL="/bin/kill"
++fi
++
+ ts_check_test_command "$TS_CMD_KILL"
+ ts_check_test_command "$TS_HELPER_SIGRECEIVE"
+ 
+diff --git a/tests/ts/kill/print_pid b/tests/ts/kill/print_pid
+index c6187f192..2a2a838ee 100755
+--- a/tests/ts/kill/print_pid
++++ b/tests/ts/kill/print_pid
+@@ -18,6 +18,11 @@ TS_DESC="print_pid"
+ . "$TS_TOPDIR/functions.sh"
+ ts_init "$*"
+ 
++# make sure we do not use shell built-in command
++if [ "$TS_USE_SYSTEM_COMMANDS" == "yes" ]; then
++	TS_CMD_KILL="/bin/kill"
++fi
++
+ ts_check_test_command "$TS_CMD_KILL"
+ ts_check_test_command "$TS_HELPER_SIGRECEIVE"
+ 
+diff --git a/tests/ts/kill/queue b/tests/ts/kill/queue
+index 992acf7a6..4727cbfc4 100755
+--- a/tests/ts/kill/queue
++++ b/tests/ts/kill/queue
+@@ -18,6 +18,11 @@ TS_DESC="queue"
+ . "$TS_TOPDIR/functions.sh"
+ ts_init "$*"
+ 
++# make sure we do not use shell built-in command
++if [ "$TS_USE_SYSTEM_COMMANDS" == "yes" ]; then
++	TS_CMD_KILL="/bin/kill"
++fi
++
+ ts_check_test_command "$TS_CMD_KILL"
+ ts_check_test_command "$TS_HELPER_SIGRECEIVE"
+ 
+-- 
+2.20.1
+

@@ -1,0 +1,83 @@
+From ae227f0eb3500b49fb78623f51ec9bd4366346ef Mon Sep 17 00:00:00 2001
+From: Stanislav Brabec <sbrabec@suse.cz>
+Date: Thu, 10 Oct 2019 01:08:25 +0200
+Subject: [PATCH 59/63] nologin: Prevent error from su -c
+
+"su -c" can pass "-c" to nologin. It causes ugly error:
+
+su -c "echo OK" - man
+-nologin: invalid option -- 'c'
+Try '-nologin --help' for more information.
+
+Accept -c to prevent this error.
+
+Upstream: http://github.com/karelzak/util-linux/commit/a174eefb41a2ce8b467bb7e1546953c8bd1223dd
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1922299
+Signed-off-by: Josef Cejka <jcejka@suse.com>
+Signed-off-by: Stanislav Brabec <sbrabec@suse.cz>
+---
+ login-utils/nologin.8 | 11 +++++++++--
+ login-utils/nologin.c |  9 +++++++--
+ 2 files changed, 16 insertions(+), 4 deletions(-)
+
+diff --git a/login-utils/nologin.8 b/login-utils/nologin.8
+index ee5948443..9389a86c6 100644
+--- a/login-utils/nologin.8
++++ b/login-utils/nologin.8
+@@ -18,9 +18,16 @@ The exit code returned by
+ is always 1.
+ .PP
+ .SH OPTIONS
+-.IP "\fB\-h, \-\-help\fP"
++
++
++.TP
++.IP "\fB\-c\fR, \fB\-\-command\fR \fIcommand\fR"
++Ignored. For compatibility with
++.I su -c "command" - user
++that would cause error otherwise.
++.IP "\fB\-h\fR, \fB\-\-help\fR"
+ Display help text and exit.
+-.IP "\fB-V, \-\-version"
++.IP "\fB-V\fR, \fB\-\-version\fR"
+ Display version information and exit.
+ .SH NOTES
+ .B nologin
+diff --git a/login-utils/nologin.c b/login-utils/nologin.c
+index b0b6a721c..293f568c1 100644
+--- a/login-utils/nologin.c
++++ b/login-utils/nologin.c
+@@ -30,7 +30,8 @@ static void __attribute__((__noreturn__)) usage(void)
+ 	fputs(_("Politely refuse a login.\n"), out);
+ 
+ 	fputs(USAGE_OPTIONS, out);
+-	printf(USAGE_HELP_OPTIONS(16));
++	fputs(_(" -c, --command <command>  does nothing (for compatibility with su -c)\n"), out);
++	printf(USAGE_HELP_OPTIONS(26));
+ 
+ 	printf(USAGE_MAN_TAIL("nologin(8)"));
+ 	exit(EXIT_FAILURE);
+@@ -41,6 +42,7 @@ int main(int argc, char *argv[])
+ 	int c, fd = -1;
+ 	struct stat st;
+ 	static const struct option longopts[] = {
++		{ "command", required_argument, NULL, 'c' },
+ 		{ "help",    0, NULL, 'h' },
+ 		{ "version", 0, NULL, 'V' },
+ 		{ NULL, 0, NULL, 0 }
+@@ -50,8 +52,11 @@ int main(int argc, char *argv[])
+ 	bindtextdomain(PACKAGE, LOCALEDIR);
+ 	textdomain(PACKAGE);
+ 
+-	while ((c = getopt_long(argc, argv, "hV", longopts, NULL)) != -1) {
++	while ((c = getopt_long(argc, argv, "c:hV", longopts, NULL)) != -1) {
+ 		switch (c) {
++		case 'c':
++			/* Ignore the command, just don't print unknown option error. */
++			break;
+ 		case 'h':
+ 			usage();
+ 			break;
+-- 
+2.31.1
+

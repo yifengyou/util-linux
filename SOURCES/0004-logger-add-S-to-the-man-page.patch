@@ -1,0 +1,29 @@
+From 56b9e31e6b9864bba07a25d2244ca0006eed5bb5 Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Fri, 10 Aug 2018 16:55:14 +0200
+Subject: [PATCH 4/6] logger: add -S to the man page
+
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1614843
+Upstream: http://github.com/karelzak/util-linux/commit/1f6583930b1061c5e79e09a9f2e80caaf9eeb405
+Reported-by: Radka Skvarilova <rskvaril@redhat.com>
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ misc-utils/logger.1 | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/misc-utils/logger.1 b/misc-utils/logger.1
+index f121c4dc9..f9655978d 100644
+--- a/misc-utils/logger.1
++++ b/misc-utils/logger.1
+@@ -224,7 +224,7 @@ produces:
+ .fi
+ .IP
+ .TP
+-.BR \-\-size " \fIsize
++.BR \-S , " -\-size " \fIsize
+ Sets the maximum permitted message size to \fIsize\fR.  The default
+ is 1KiB characters, which is the limit traditionally used and specified
+ in RFC 3164.  With RFC 5424, this limit has become flexible.  A good assumption
+-- 
+2.14.4
+

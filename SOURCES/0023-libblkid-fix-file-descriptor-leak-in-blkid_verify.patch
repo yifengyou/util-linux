@@ -1,0 +1,87 @@
+From e431bfeca0f3e7be2eba30be83260f20976f871d Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Wed, 31 Jul 2019 16:18:27 +0200
+Subject: [PATCH 23/24] libblkid: fix file descriptor leak in blkid_verify()
+
+The function blkid_verify() uses private device file descriptor and
+uses blkid_probe_set_device() to assign the descriptor to low-level
+probing code. Unfortunately, close() in this case is not enough as the
+prober can internally open whole-disk device too.
+
+The library API has been extended so blkid_probe_set_device()
+deallocates and close previously used prober for whole-disk. This new
+functionality is used in blkid_verify() now.
+
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1734553
+Upstream: http://github.com/karelzak/util-linux/commit/c4d6d1c54dcd0eff701236d396d88b1fc6251768
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ libblkid/src/probe.c  | 19 ++++++++++++++++---
+ libblkid/src/verify.c |  4 +++-
+ 2 files changed, 19 insertions(+), 4 deletions(-)
+
+diff --git a/libblkid/src/probe.c b/libblkid/src/probe.c
+index 647ae416a..a6dc8416a 100644
+--- a/libblkid/src/probe.c
++++ b/libblkid/src/probe.c
+@@ -848,10 +848,15 @@ failed:
+  * @off: begin of probing area
+  * @size: size of probing area (zero means whole device/file)
+  *
+- * Assigns the device to probe control struct, resets internal buffers and
+- * resets the current probing.
++ * Assigns the device to probe control struct, resets internal buffers, resets
++ * the current probing, and close previously associated device (if open by
++ * libblkid).
+  *
+- * Returns: -1 in case of failure, or 0 on success.
++ * If @fd is < 0 than only resets the prober and returns 1. Note that
++ * blkid_reset_probe() keeps the device associated with the prober, but
++ * blkid_probe_set_device() does complete reset.
++ *
++ * Returns: -1 in case of failure, 0 on success and 1 on reset.
+  */
+ int blkid_probe_set_device(blkid_probe pr, int fd,
+ 		blkid_loff_t off, blkid_loff_t size)
+@@ -866,6 +871,11 @@ int blkid_probe_set_device(blkid_probe pr, int fd,
+ 	if ((pr->flags & BLKID_FL_PRIVATE_FD) && pr->fd >= 0)
+ 		close(pr->fd);
+ 
++	if (pr->disk_probe) {
++		blkid_free_probe(pr->disk_probe);
++		pr->disk_probe = NULL;
++	}
++
+ 	pr->flags &= ~BLKID_FL_PRIVATE_FD;
+ 	pr->flags &= ~BLKID_FL_TINY_DEV;
+ 	pr->flags &= ~BLKID_FL_CDROM_DEV;
+@@ -881,6 +891,9 @@ int blkid_probe_set_device(blkid_probe pr, int fd,
+ 	pr->wipe_size = 0;
+ 	pr->wipe_chain = NULL;
+ 
++	if (fd < 0)
++		return 1;
++
+ #if defined(POSIX_FADV_RANDOM) && defined(HAVE_POSIX_FADVISE)
+ 	/* Disable read-ahead */
+ 	posix_fadvise(fd, 0, 0, POSIX_FADV_RANDOM);
+diff --git a/libblkid/src/verify.c b/libblkid/src/verify.c
+index 7f44f5497..750378f8c 100644
+--- a/libblkid/src/verify.c
++++ b/libblkid/src/verify.c
+@@ -184,9 +184,11 @@ blkid_dev blkid_verify(blkid_cache cache, blkid_dev dev)
+ 			   dev->bid_name, (long long)st.st_rdev, dev->bid_type));
+ 	}
+ 
+-	blkid_reset_probe(cache->probe);
++	/* reset prober */
+ 	blkid_probe_reset_superblocks_filter(cache->probe);
++	blkid_probe_set_device(cache->probe, -1, 0, 0);
+ 	close(fd);
++
+ 	return dev;
+ }
+ 
+-- 
+2.21.0
+

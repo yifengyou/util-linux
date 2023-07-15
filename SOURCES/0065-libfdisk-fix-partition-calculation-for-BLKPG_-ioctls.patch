@@ -1,0 +1,60 @@
+From be29de8b5dfe15972455d25e15068dc31d4376ac Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Wed, 6 May 2020 13:32:46 +0200
+Subject: [PATCH 65/72] libfdisk: fix partition calculation for BLKPG_* ioctls
+
+The include/partx.h interface we use in util-linux uses 512-byte
+sectors, but libfdisk uses real sector sizes.
+
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=2016229
+Upstream: http://github.com/util-linux/util-linux/commit/6a4d53ce6466fc97c0ee13846cd1bf7bdd7bfef0
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ libfdisk/src/context.c | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/libfdisk/src/context.c b/libfdisk/src/context.c
+index 779a9a889..fe7eb9e7e 100644
+--- a/libfdisk/src/context.c
++++ b/libfdisk/src/context.c
+@@ -813,6 +813,7 @@ int fdisk_reread_changes(struct fdisk_context *cxt, struct fdisk_table *org)
+ 	struct fdisk_partition **rem = NULL, **add = NULL, **upd = NULL;
+ 	int change, rc = 0, err = 0;
+ 	size_t nparts, i, nadds = 0, nupds = 0, nrems = 0;
++	unsigned int ssf;
+ 
+ 	DBG(CXT, ul_debugobj(cxt, "rereading changes"));
+ 
+@@ -845,6 +846,9 @@ int fdisk_reread_changes(struct fdisk_context *cxt, struct fdisk_table *org)
+ 			goto done;
+ 	}
+ 
++	/* sector size factor -- used to recount from real to 512-byte sectors */
++	ssf = cxt->sector_size / 512;
++
+ 	for (i = 0; i < nrems; i++) {
+ 		pa = rem[i];
+ 		DBG(PART, ul_debugobj(pa, "#%zu calling BLKPG_DEL_PARTITION", pa->partno));
+@@ -856,7 +860,8 @@ int fdisk_reread_changes(struct fdisk_context *cxt, struct fdisk_table *org)
+ 	for (i = 0; i < nupds; i++) {
+ 		pa = upd[i];
+ 		DBG(PART, ul_debugobj(pa, "#%zu calling BLKPG_RESIZE_PARTITION", pa->partno));
+-		if (partx_resize_partition(cxt->dev_fd, pa->partno + 1, pa->start, pa->size) != 0) {
++		if (partx_resize_partition(cxt->dev_fd, pa->partno + 1,
++					   pa->start * ssf, pa->size * ssf) != 0) {
+ 			fdisk_warn(cxt, _("Failed to update system information about partition %zu"), pa->partno + 1);
+ 			err++;
+ 		}
+@@ -864,7 +869,8 @@ int fdisk_reread_changes(struct fdisk_context *cxt, struct fdisk_table *org)
+ 	for (i = 0; i < nadds; i++) {
+ 		pa = add[i];
+ 		DBG(PART, ul_debugobj(pa, "#%zu calling BLKPG_ADD_PARTITION", pa->partno));
+-		if (partx_add_partition(cxt->dev_fd, pa->partno + 1, pa->start, pa->size) != 0) {
++		if (partx_add_partition(cxt->dev_fd, pa->partno + 1,
++					pa->start * ssf, pa->size * ssf) != 0) {
+ 			fdisk_warn(cxt, _("Failed to add partition %zu to system"), pa->partno + 1);
+ 			err++;
+ 		}
+-- 
+2.31.1
+

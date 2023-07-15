@@ -1,0 +1,32 @@
+From 4ac8e70822313b0c6b35ebf633c6e8fbca558998 Mon Sep 17 00:00:00 2001
+From: Thomas Abraham <tabraham@suse.com>
+Date: Thu, 24 Sep 2020 14:52:33 -0400
+Subject: [PATCH 47/55] lscpu: avoid segfault on PowerPC systems with valid
+ hardware configurations
+
+ntypes greater than 1 is valid in some hardware configurations, and an assert()
+on the value isn't necessary or very future proof
+
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1883783
+Upstream: http://github.com/karelzak/util-linux/commit/cbe3304bc43b3fceb06fb6e5dd822bb59abf1b84
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ sys-utils/lscpu.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/sys-utils/lscpu.c b/sys-utils/lscpu.c
+index 1aa7bff4d..748d545b6 100644
+--- a/sys-utils/lscpu.c
++++ b/sys-utils/lscpu.c
+@@ -369,8 +369,6 @@ static void read_physical_info_powerpc(struct lscpu_desc *desc)
+ 		return;
+ 
+ 	ntypes = strbe16toh(buf, 2);
+-
+-	assert(ntypes <= 1);
+ 	if (!ntypes)
+ 		return;
+ 
+-- 
+2.29.2
+

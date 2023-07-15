@@ -1,0 +1,93 @@
+From 8822103e30121d95fa58b5e8b7ce8ce91d4e778e Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Mon, 3 Jun 2019 22:29:51 +0200
+Subject: [PATCH] tests: make mount -oloop use more robust
+
+The command creates loop device, so udevd is in the game and it seems
+better to wait for him.
+
+Addresses: http://bugzilla.redhat.com/show_bug.cgi?id=1681062
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ tests/ts/libmount/loop         |  4 ++++
+ tests/ts/libmount/loop-overlay | 11 +++++++++++
+ 2 files changed, 15 insertions(+)
+
+diff --git a/tests/ts/libmount/loop b/tests/ts/libmount/loop
+index 090b79fa4..50764781c 100755
+--- a/tests/ts/libmount/loop
++++ b/tests/ts/libmount/loop
+@@ -65,6 +65,7 @@ ts_finalize_subtest
+ ts_init_subtest "file-o-loop"
+ [ -d "$TS_MOUNTPOINT" ] || mkdir -p $TS_MOUNTPOINT
+ $TS_CMD_MOUNT -oloop "$BACKFILE" "$TS_MOUNTPOINT" >> $TS_OUTPUT 2>&1
++udevadm settle
+ $TS_CMD_UMOUNT "$TS_MOUNTPOINT" >> $TS_OUTPUT 2>&1
+ udevadm settle
+ ts_log "Success"
+@@ -89,6 +90,7 @@ else
+ 	[ -d "$TS_MOUNTPOINT" ] || mkdir -p $TS_MOUNTPOINT
+ 	LODEV=$( $TS_CMD_LOSETUP --find 2>> $TS_OUTPUT )
+ 	$TS_CMD_MOUNT -oloop=$LODEV "$BACKFILE" "$TS_MOUNTPOINT" >> $TS_OUTPUT 2>&1
++	udevadm settle
+ 	verify_mount_dev "$LODEV" "$TS_MOUNTPOINT" >> $TS_OUTPUT 2>&1
+ 	$TS_CMD_UMOUNT "$TS_MOUNTPOINT" >> $TS_OUTPUT 2>&1
+ 	udevadm settle
+@@ -122,6 +124,7 @@ ts_init_subtest "o-loop-val-initialized"
+ LODEV=$( $TS_CMD_LOSETUP --show -f "$BACKFILE" 2>>$TS_OUTPUT)
+ $TS_CMD_MOUNT -oloop=$LODEV "$BACKFILE" "$TS_MOUNTPOINT" 2>&1 \
+        | sed 's/:.*:/: <target>/; s/for .*/for <source>/' > $TS_OUTPUT
++udevadm settle
+ $TS_CMD_LOSETUP --detach $LODEV >> $TS_OUTPUT 2>&1
+ udevadm settle
+ ts_log "Success"
+@@ -133,6 +136,7 @@ cp "$BACKFILE" "$BACKFILE"-2
+ LODEV=$( $TS_CMD_LOSETUP --show -f "$BACKFILE"-2 2>> $TS_OUTPUT)
+ $TS_CMD_MOUNT -oloop=$LODEV "$BACKFILE" "$TS_MOUNTPOINT" 2>&1 \
+ 	| sed 's/:.*:/: <target>/; s/for .*/for <source>/' > $TS_OUTPUT
++udevadm settle
+ $TS_CMD_LOSETUP --detach $LODEV >> $TS_OUTPUT 2>&1
+ rm "$BACKFILE"-2
+ udevadm settle
+diff --git a/tests/ts/libmount/loop-overlay b/tests/ts/libmount/loop-overlay
+index fffb823c0..1ba6eb06e 100755
+--- a/tests/ts/libmount/loop-overlay
++++ b/tests/ts/libmount/loop-overlay
+@@ -43,23 +43,34 @@ dd if="$IMG" of="$IMG" oflag=append bs=1024k count=5 conv=notrunc &>/dev/null
+ 
+ echo "second should fail" >>$TS_OUTPUT
+ $TS_CMD_MOUNT -oloop "$IMG" "$TS_MOUNTPOINT-1" >> $TS_OUTPUT 2>&1
++udevadm settle
+ $TS_CMD_MOUNT -oloop,offset=$OFFSET "$IMG" "$TS_MOUNTPOINT-2" 2>&1 \
+        | sed 's/:.*:/: <target>/; s/for .*/for <source>/' >> $TS_OUTPUT
++udevadm settle
+ $TS_CMD_UMOUNT "$TS_MOUNTPOINT-1" >> $TS_OUTPUT 2>&1
++udevadm settle
+ 
+ echo "should succeed" >>$TS_OUTPUT
+ $TS_CMD_MOUNT -oloop,sizelimit=$OFFSET "$IMG" "$TS_MOUNTPOINT-1" >> $TS_OUTPUT 2>&1
++udevadm settle
+ $TS_CMD_MOUNT -oloop,offset=$OFFSET "$IMG" "$TS_MOUNTPOINT-2" >> $TS_OUTPUT 2>&1
++udevadm settle
+ $TS_CMD_UMOUNT "$TS_MOUNTPOINT-1" >> $TS_OUTPUT 2>&1
++udevadm settle
+ $TS_CMD_UMOUNT "$TS_MOUNTPOINT-2" >> $TS_OUTPUT 2>&1
++udevadm settle
+ 
+ echo "both should fail" >>$TS_OUTPUT
+ LOOPDEV=$($TS_CMD_LOSETUP --show -f --offset 1 --sizelimit $OFFSET "$IMG")
++udevadm settle
+ $TS_CMD_MOUNT -oloop,sizelimit=$OFFSET "$IMG" "$TS_MOUNTPOINT-1" 2>&1 \
+ 	| sed 's/:.*:/: <target>/; s/for .*/for <source>/' >> $TS_OUTPUT
++udevadm settle
+ $TS_CMD_MOUNT -oloop,offset=$OFFSET "$IMG" "$TS_MOUNTPOINT-2" 2>&1 \
+ 	| sed 's/:.*:/: <target>/; s/for .*/for <source>/' >> $TS_OUTPUT
++udevadm settle
+ $TS_CMD_LOSETUP --detach $LOOPDEV
++udevadm settle
+ 
+ ts_log "Success"
+ ts_finalize
+-- 
+2.21.0
+

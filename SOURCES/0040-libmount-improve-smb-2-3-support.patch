@@ -1,0 +1,49 @@
+From 2cd5219da87274db251a7f836efe6ac724b70e53 Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Wed, 11 Mar 2020 10:38:37 +0100
+Subject: [PATCH 40/40] libmount: improve smb{2,3} support
+
+It seems kernel can use smb3 as fstype in mountinfo.
+
+Upstream: http://github.com/karelzak/util-linux/commit/36d80cb6c11b3064ed9fb29c7c8b101e3f266441
+Upstream: http://github.com/karelzak/util-linux/commit/b7ff4134beea53688ab3c01484cf59b2ce2d9ce9
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1812118
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ libmount/src/tab.c   | 5 ++++-
+ libmount/src/utils.c | 1 +
+ 2 files changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/libmount/src/tab.c b/libmount/src/tab.c
+index eb61dd33e..74d60df3d 100644
+--- a/libmount/src/tab.c
++++ b/libmount/src/tab.c
+@@ -1644,9 +1644,12 @@ int mnt_table_is_fs_mounted(struct libmnt_table *tb, struct libmnt_fs *fstab_fs)
+ 		if (root) {
+ 			const char *fstype = mnt_fs_get_fstype(fs);
+ 
+-			if (fstype && strcmp(fstype, "cifs") == 0) {
++			if (fstype && (strcmp(fstype, "cifs") == 0
++				       || strcmp(fstype, "smb3") == 0)) {
++
+ 				const char *unc_subdir = get_cifs_unc_subdir_path(src);
+ 				const char *path_on_fs = mnt_fs_get_root(fs);
++
+ 				if (!unc_subdir || !path_on_fs || !streq_paths(unc_subdir, path_on_fs))
+ 					continue;
+ 			} else {
+diff --git a/libmount/src/utils.c b/libmount/src/utils.c
+index 04e79f53f..e43588831 100644
+--- a/libmount/src/utils.c
++++ b/libmount/src/utils.c
+@@ -315,6 +315,7 @@ int mnt_fstype_is_pseudofs(const char *type)
+ int mnt_fstype_is_netfs(const char *type)
+ {
+ 	if (strcmp(type, "cifs")   == 0 ||
++	    strcmp(type, "smb3")   == 0 ||
+ 	    strcmp(type, "smbfs")  == 0 ||
+ 	    strncmp(type,"nfs", 3) == 0 ||
+ 	    strcmp(type, "afs")    == 0 ||
+-- 
+2.25.4
+

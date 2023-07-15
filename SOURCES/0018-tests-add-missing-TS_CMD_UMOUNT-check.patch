@@ -1,0 +1,27 @@
+From aa983f0eea49638f04de0fbafcd156c1472726ee Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Mon, 4 Mar 2019 17:32:03 +0100
+Subject: [PATCH 18/19] tests: add missing TS_CMD_UMOUNT check
+
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1681062
+Upstream: http://github.com/karelzak/util-linux/commit/bb872a239ce9faae7ac672a9137945dd8e4ee964
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ tests/ts/libmount/loop | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/tests/ts/libmount/loop b/tests/ts/libmount/loop
+index b52b7476a..090b79fa4 100755
+--- a/tests/ts/libmount/loop
++++ b/tests/ts/libmount/loop
+@@ -23,6 +23,7 @@ TS_DESC="losetup-loop"
+ ts_init "$*"
+ 
+ ts_check_test_command "$TS_CMD_MOUNT"
++ts_check_test_command "$TS_CMD_UMOUNT"
+ ts_check_test_command "$TS_CMD_FINDMNT"
+ ts_check_test_command "$TS_CMD_LOSETUP"
+ 
+-- 
+2.20.1
+

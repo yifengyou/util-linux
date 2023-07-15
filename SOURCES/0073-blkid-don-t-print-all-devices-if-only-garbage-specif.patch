@@ -1,0 +1,40 @@
+From aa57abc10273f250a7ab6525bd45dc2bdc5e4b41 Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Mon, 10 Jan 2022 16:32:44 +0100
+Subject: [PATCH 73/74] blkid: don't print all devices if only garbage
+ specified
+
+There is small regression. The old version (before
+64cfe6ac37631a6347bd4005c72dd2d37e737f5e) returns nothing when
+
+  # blkid /dontexist
+
+specified on command line.
+
+Upstream: http://github.com/util-linux/util-linux/commit/9e882685a3db3fd5e0870e7b94a4ea25ddc199c7
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=2026511
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ misc-utils/blkid.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/misc-utils/blkid.c b/misc-utils/blkid.c
+index bd4ce4a39..bc0d3465d 100644
+--- a/misc-utils/blkid.c
++++ b/misc-utils/blkid.c
+@@ -838,6 +838,12 @@ int main(int argc, char **argv)
+ 
+ 			devices[numdev++] = dev;
+ 		}
++
++		if (!numdev) {
++			/* only unsupported devices specified */
++			err = BLKID_EXIT_NOTFOUND;
++			goto exit;
++		}
+ 	}
+ 
+ 	/* convert LABEL/UUID lookup to evaluate request */
+-- 
+2.31.1
+

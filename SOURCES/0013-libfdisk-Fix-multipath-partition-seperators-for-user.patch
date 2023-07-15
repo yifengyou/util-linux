@@ -1,0 +1,65 @@
+From 5aea6937edf77a753e0d504bb637214e116aaed2 Mon Sep 17 00:00:00 2001
+From: KyleMahlkuch <Kyle.Mahlkuch@ibm.com>
+Date: Mon, 25 Jun 2018 14:52:01 -0500
+Subject: [PATCH 13/14] libfdisk: Fix multipath partition seperators for
+ user-friendly names
+
+The current code assumes "-part" is the only partition sepereator
+but this is not true for some distros.
+
+For example in Ubuntu 18.04 fdisk does not print the correct names for
+mpatha:
+
+~# ls -l /dev/mapper/mpatha*
+lrwxrwxrwx 1 root root 7 Feb  1 04:39 /dev/mapper/mpatha -> ../dm-0
+lrwxrwxrwx 1 root root 7 Feb  1 04:38 /dev/mapper/mpatha1 -> ../dm-4
+lrwxrwxrwx 1 root root 7 Feb  1 04:38 /dev/mapper/mpatha2 -> ../dm-5
+lrwxrwxrwx 1 root root 7 Feb  1 04:38 /dev/mapper/mpatha3 -> ../dm-6
+
+~# fdisk -l /dev/mapper/mpatha
+Device                   Boot     Start        End   Sectors  Size Id Type
+/dev/mapper/mpatha-part1           2048  419432447 419430400  200G 83 Linux
+/dev/mapper/mpatha-part2      419432448  838862847 419430400  200G 83 Linux
+/dev/mapper/mpatha-part3      838862848 1258291199 419428352  200G 83 Linux
+
+Instead of assuming a partition seperator of "-part" this patch uses
+access to check the file system for a partition seperator of "p" or
+the absense of a partition seperator. If neither of these work the patch
+defaults to "-part" like we had before this patch.
+
+Upstream: http://github.com/karelzak/util-linux/commit/73775189767195f1d9f5b6b6f6a54e51f61c4356
+Addresses: http://bugzilla.redhat.com/show_bug.cgi?id=1655650
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ libfdisk/src/utils.c | 15 ++++++++++++++-
+ 1 file changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/libfdisk/src/utils.c b/libfdisk/src/utils.c
+index 5ba9e0466..54e28b2fa 100644
+--- a/libfdisk/src/utils.c
++++ b/libfdisk/src/utils.c
+@@ -153,7 +153,20 @@ char *fdisk_partname(const char *dev, size_t partno)
+ 	if ((strncmp(dev, _PATH_DEV_BYID, sizeof(_PATH_DEV_BYID) - 1) == 0) ||
+ 	     strncmp(dev, _PATH_DEV_BYPATH, sizeof(_PATH_DEV_BYPATH) - 1) == 0 ||
+ 	     strncmp(dev, "/dev/mapper", sizeof("/dev/mapper") - 1) == 0) {
+-	       p = "-part";
++		asprintf(&res, "%.*s%zu", w, dev, partno);
++		if (access(res, F_OK) == 0){
++			p = "";
++		} else {
++			/* check for partition seperator "p" */
++			p = "p";
++			free(res);
++			asprintf(&res, "%.*s%s%zu", w, dev, p, partno);
++			if (access(res, F_OK) != 0){
++				/* otherwise, default to "-path" */
++				p = "-part";
++			}
++		}
++		free(res);
+ 	}
+ 
+ 	if (asprintf(&res, "%.*s%s%zu", w, dev, p, partno) <= 0)
+-- 
+2.17.2
+

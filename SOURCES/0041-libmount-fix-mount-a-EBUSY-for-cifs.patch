@@ -1,0 +1,65 @@
+From 618aedc9e892b206492c1720bec261b043c66263 Mon Sep 17 00:00:00 2001
+From: Roberto Bergantinos Corpas <rbergant@redhat.com>
+Date: Mon, 27 Apr 2020 15:46:02 +0200
+Subject: [PATCH] libmount: fix mount -a EBUSY for cifs
+
+fstab:
+
+ //rhel73/myshare/sub/path  /mnt   cifs
+
+after mount in mountinfo:
+
+ #  grep cifs /proc/self/mountinfo
+ 47 39 0:40 /sub/path /mnt rw,relatime shared:60 - cifs //rhel73/myshare/sub/path ...
+            ^^^^^^^^^
+or:
+
+ # grep cifs /proc/self/mountinfo
+ 47 39 0:40 / /mnt rw,relatime shared:60 - cifs //rhel73/myshare/sub/path ...
+            ^
+
+That is so since on kernel cifs code, cifs_get_root (which returns the
+entry associated with mnt_root) return s_root if
+CIFS_MOUNT_USE_PREFIX_PATH is set, no questions asked.
+
+This situation can occurr often on CIFS mounts, as CIFS servers limit
+frequently scope of access to the root path.
+
+[kzak@redhat.com: - add more info to the commit message,
+                  - clean up variable names]
+
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1829245
+Upstream: http://github.com/karelzak/util-linux/commit/31b3a523eca2fc7e5876ec5fd89094208fed0899
+Signed-off-by: Roberto Bergantinos Corpas <rbergant@redhat.com>
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ libmount/src/tab.c | 11 ++++++-----
+ 1 file changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/libmount/src/tab.c b/libmount/src/tab.c
+index 74d60df3d..cd97a1cb5 100644
+--- a/libmount/src/tab.c
++++ b/libmount/src/tab.c
+@@ -1644,13 +1644,14 @@ int mnt_table_is_fs_mounted(struct libmnt_table *tb, struct libmnt_fs *fstab_fs)
+ 		if (root) {
+ 			const char *fstype = mnt_fs_get_fstype(fs);
+ 
+-			if (fstype && (strcmp(fstype, "cifs") == 0
+-				       || strcmp(fstype, "smb3") == 0)) {
++			if (fstype && (strcmp(fstype, "cifs") == 0 ||
++				       strcmp(fstype, "smb3") == 0)) {
+ 
+-				const char *unc_subdir = get_cifs_unc_subdir_path(src);
+-				const char *path_on_fs = mnt_fs_get_root(fs);
++				const char *sub = get_cifs_unc_subdir_path(src);
++				const char *r = mnt_fs_get_root(fs);
+ 
+-				if (!unc_subdir || !path_on_fs || !streq_paths(unc_subdir, path_on_fs))
++				if (!sub || !r || (!streq_paths(sub, r) &&
++						   !streq_paths("/", r)))
+ 					continue;
+ 			} else {
+ 				const char *r = mnt_fs_get_root(fs);
+-- 
+2.25.4
+

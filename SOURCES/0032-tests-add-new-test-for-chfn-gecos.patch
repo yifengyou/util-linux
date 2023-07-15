@@ -1,0 +1,83 @@
+From 447b7d7222bf8cb3591d611aa51917bd4453f8d6 Mon Sep 17 00:00:00 2001
+From: Radka Skvarilova <rskvaril@redhat.com>
+Date: Mon, 16 Dec 2019 10:57:32 +0100
+Subject: [PATCH 32/32] tests: add new test for chfn gecos
+
+Addresses: http://bugzilla.redhat.com/show_bug.cgi?id=1743555
+Upstream: http://github.com/karelzak/util-linux/commit/02238bff663ce5fe823980d8119f3871cc348764
+Upstream: http://github.com/karelzak/util-linux/commit/b2ef43864f24b1a9c0c67fe2a7177a5110da1b6e
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ tests/commands.sh         |  1 +
+ tests/expected/chfn/gecos |  6 ++++++
+ tests/ts/chfn/gecos       | 36 ++++++++++++++++++++++++++++++++++++
+ 3 files changed, 43 insertions(+)
+ create mode 100644 tests/expected/chfn/gecos
+ create mode 100755 tests/ts/chfn/gecos
+
+diff --git a/tests/commands.sh b/tests/commands.sh
+index 93100caf6..b56381c9e 100644
+--- a/tests/commands.sh
++++ b/tests/commands.sh
+@@ -104,3 +104,4 @@ TS_CMD_UUIDPARSE=${TS_CMD_UUIDPARSE-"${ts_commandsdir}uuidparse"}
+ TS_CMD_WHEREIS=${TS_CMD_WHEREIS-"${ts_commandsdir}whereis"}
+ TS_CMD_WIPEFS=${TS_CMD_WIPEFS-"${ts_commandsdir}wipefs"}
+ TS_CMD_CHRT=${TS_CMD_CHRT-"${ts_commandsdir}chrt"}
++TS_CMD_CHFN=${TS_CMD_CHFN-"${ts_commandsdir}chfn"}
+diff --git a/tests/expected/chfn/gecos b/tests/expected/chfn/gecos
+new file mode 100644
+index 000000000..af7b81b6c
+--- /dev/null
++++ b/tests/expected/chfn/gecos
+@@ -0,0 +1,6 @@
++Initialize user
++testuser_chfn_test:x:9899:9899::/home/testuser_chfn_test:/bin/bash
++Changing finger information for testuser_chfn_test.
++
++Finger information changed.
++testuser_chfn_test:x:9899:9899:test_gecos:/home/testuser_chfn_test:/bin/bash
+diff --git a/tests/ts/chfn/gecos b/tests/ts/chfn/gecos
+new file mode 100755
+index 000000000..aad27d40a
+--- /dev/null
++++ b/tests/ts/chfn/gecos
+@@ -0,0 +1,36 @@
++#!/bin/bash
++
++#
++# Copyright (C) 2019 Radka Skvarilova <rskvaril@redhat.com>
++#
++# This file is part of util-linux.
++#
++# This file is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This file is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++
++TS_TOPDIR="${0%/*}/../.."
++TS_DESC="gecos"
++
++. $TS_TOPDIR/functions.sh
++ts_init "$*"
++
++ts_skip_nonroot
++ts_check_test_command "$TS_CMD_CHFN"
++ts_check_prog "useradd"
++ts_check_prog "userdel"
++
++ts_log "Initialize user"
++useradd -u 9899 --shell /bin/bash testuser_chfn_test
++grep testuser /etc/passwd >> $TS_OUTPUT
++$TS_CMD_CHFN -f test_gecos testuser_chfn_test >>$TS_OUTPUT
++grep testuser /etc/passwd >> $TS_OUTPUT
++userdel --remove testuser_chfn_test &> /dev/null
++ts_finalize
+-- 
+2.21.0
+

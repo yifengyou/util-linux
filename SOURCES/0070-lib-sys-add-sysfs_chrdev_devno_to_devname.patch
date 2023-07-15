@@ -1,0 +1,86 @@
+From 0db1f9965e6791c651d0bccd095cbe3a87c6579c Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Thu, 25 Nov 2021 11:52:46 +0100
+Subject: [PATCH 70/74] lib/sys: add sysfs_chrdev_devno_to_devname()
+
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=2026511
+Upstream: http://github.com/util-linux/util-linux/commit/ab5304a7a34bfa45d9bee205ca4e26f03db6e79d
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ include/pathnames.h |  1 +
+ include/sysfs.h     |  2 ++
+ lib/sysfs.c         | 33 +++++++++++++++++++++++++++++++++
+ 3 files changed, 36 insertions(+)
+
+diff --git a/include/pathnames.h b/include/pathnames.h
+index 59cc66736..77f8b6e85 100644
+--- a/include/pathnames.h
++++ b/include/pathnames.h
+@@ -102,6 +102,7 @@
+ 
+ #define _PATH_SYS_BLOCK		"/sys/block"
+ #define _PATH_SYS_DEVBLOCK	"/sys/dev/block"
++#define _PATH_SYS_DEVCHAR	"/sys/dev/char"
+ #define _PATH_SYS_CLASS		"/sys/class"
+ #define _PATH_SYS_SCSI		"/sys/bus/scsi"
+ 
+diff --git a/include/sysfs.h b/include/sysfs.h
+index 9a72a2009..e2fd0c1ba 100644
+--- a/include/sysfs.h
++++ b/include/sysfs.h
+@@ -92,6 +92,8 @@ extern int sysfs_scsi_host_is(struct sysfs_cxt *cxt, const char *type);
+ extern int sysfs_scsi_has_attribute(struct sysfs_cxt *cxt, const char *attr);
+ extern int sysfs_scsi_path_contains(struct sysfs_cxt *cxt, const char *pattern);
+ 
++extern char *sysfs_chrdev_devno_to_devname(dev_t devno, char *buf, size_t bufsiz);
++
+ /**
+  * sysfs_devname_sys_to_dev:
+  * @name: devname to be converted in place
+diff --git a/lib/sysfs.c b/lib/sysfs.c
+index e5437f43a..ceec41d10 100644
+--- a/lib/sysfs.c
++++ b/lib/sysfs.c
+@@ -1036,6 +1036,39 @@ int sysfs_scsi_path_contains(struct sysfs_cxt *cxt, const char *pattern)
+ 	return strstr(linkc, pattern) != NULL;
+ }
+ 
++char *sysfs_chrdev_devno_to_devname(dev_t devno, char *buf, size_t bufsiz)
++{
++	char link[PATH_MAX];
++	char path[PATH_MAX];
++	char *name;
++	ssize_t	sz;
++
++	sz = snprintf(path, sizeof(path),
++		      _PATH_SYS_DEVCHAR "/%u:%u", major(devno), minor(devno));
++	if (sz <= 0)
++		return NULL;
++
++        /* read /sys/dev/char/<maj:min> link */
++	sz = readlink(path, link, sizeof(link) - 1);
++	if (sz < 0)
++		return NULL;
++	link[sz] = '\0';
++
++	name = strrchr(link, '/');
++	if (!name)
++		return NULL;
++
++	name++;
++	sz = strlen(name);
++	if ((size_t) sz + 1 > bufsiz)
++		return NULL;
++
++	memcpy(buf, name, sz + 1);
++	sysfs_devname_sys_to_dev(buf);
++	return buf;
++
++}
++
+ #ifdef TEST_PROGRAM_SYSFS
+ #include <errno.h>
+ #include <err.h>
+-- 
+2.31.1
+

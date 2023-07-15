@@ -1,0 +1,213 @@
+From 543e87865c5b9b7cb08ce8d55da1ef414154d213 Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Wed, 24 Mar 2021 12:43:17 +0100
+Subject: [PATCH 61/63] libsmartcols: introduce default sort column
+
+* add default sort column, set by scols_sort_table()
+
+* sort tree according to default sort column also in scols_sort_table_by_tree()
+
+The function scols_sort_table() does not sort tree branches if tree
+is not enabled. The function scols_sort_table_by_tree() does not care
+if tree is enabled and it always follows parent->child relations. For
+scols_sort_table_by_tree() we need to follow order in branches if
+previously scols_sort_table() has been called.
+
+For example lsblk calls
+
+	scols_sort_table(tb, cl);
+	scols_sort_table_by_tree(tb);
+
+for list-like output (for example lsblk -P) and users assume the
+same order as for tree (lsblk --tree).
+
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1940607
+Upstream: http://github.com/karelzak/util-linux/commit/529b51706ef06611a8165023f14e6593e06901de
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ libsmartcols/src/smartcolsP.h  |  3 ++
+ libsmartcols/src/table.c       | 60 ++++++++++++++++++++++++----------
+ libsmartcols/src/table_print.c |  6 ++--
+ misc-utils/lsblk.c             |  6 ++--
+ 4 files changed, 52 insertions(+), 23 deletions(-)
+
+diff --git a/libsmartcols/src/smartcolsP.h b/libsmartcols/src/smartcolsP.h
+index 510e7a980..8037fb9f5 100644
+--- a/libsmartcols/src/smartcolsP.h
++++ b/libsmartcols/src/smartcolsP.h
+@@ -160,6 +160,9 @@ struct libscols_table {
+ 
+ 	struct list_head	tb_columns;
+ 	struct list_head	tb_lines;
++
++	struct libscols_column	*dflt_sort_column;	/* default sort column, set by scols_sort_table() */
++
+ 	struct libscols_symbols	*symbols;
+ 	struct libscols_cell	title;		/* optional table title (for humans) */
+ 
+diff --git a/libsmartcols/src/table.c b/libsmartcols/src/table.c
+index 979a09a39..bbabc0817 100644
+--- a/libsmartcols/src/table.c
++++ b/libsmartcols/src/table.c
+@@ -224,6 +224,8 @@ int scols_table_remove_column(struct libscols_table *tb,
+ 
+ 	if (cl->flags & SCOLS_FL_TREE)
+ 		tb->ntreecols--;
++	if (tb->dflt_sort_column == cl)
++		tb->dflt_sort_column = NULL;
+ 
+ 	DBG(TAB, ul_debugobj(tb, "remove column"));
+ 	list_del_init(&cl->cl_columns);
+@@ -1362,41 +1364,63 @@ static int sort_line_children(struct libscols_line *ln, struct libscols_column *
+ 	return 0;
+ }
+ 
++static int  __scols_sort_tree(struct libscols_table *tb, struct libscols_column *cl)
++{
++	struct libscols_line *ln;
++	struct libscols_iter itr;
++
++	if (!tb || !cl || !cl->cmpfunc)
++		return -EINVAL;
++
++	scols_reset_iter(&itr, SCOLS_ITER_FORWARD);
++	while (scols_table_next_line(tb, &itr, &ln) == 0)
++		sort_line_children(ln, cl);
++	return 0;
++}
++
+ /**
+  * scols_sort_table:
+  * @tb: table
+- * @cl: order by this column
++ * @cl: order by this column or NULL
+  *
+  * Orders the table by the column. See also scols_column_set_cmpfunc(). If the
+  * tree output is enabled then children in the tree are recursively sorted too.
+  *
++ * The column @cl is saved as the default sort column to the @tb and the next time
++ * is possible to call scols_sort_table(tb, NULL). The saved column is also used by
++ * scols_sort_table_by_tree().
++ *
+  * Returns: 0, a negative value in case of an error.
+  */
+ int scols_sort_table(struct libscols_table *tb, struct libscols_column *cl)
+ {
+-	if (!tb || !cl || !cl->cmpfunc)
++	if (!tb)
++		return -EINVAL;
++	if (!cl)
++		cl = tb->dflt_sort_column;
++	if (!cl || !cl->cmpfunc)
+ 		return -EINVAL;
+ 
+-	DBG(TAB, ul_debugobj(tb, "sorting table"));
++	DBG(TAB, ul_debugobj(tb, "sorting table by %zu column", cl->seqnum));
+ 	list_sort(&tb->tb_lines, cells_cmp_wrapper_lines, cl);
+ 
+-	if (scols_table_is_tree(tb)) {
+-		struct libscols_line *ln;
+-		struct libscols_iter itr;
++	if (scols_table_is_tree(tb))
++		__scols_sort_tree(tb, cl);
+ 
+-		scols_reset_iter(&itr, SCOLS_ITER_FORWARD);
+-		while (scols_table_next_line(tb, &itr, &ln) == 0)
+-			sort_line_children(ln, cl);
+-	}
++	if (cl && cl != tb->dflt_sort_column)
++		tb->dflt_sort_column = cl;
+ 
+ 	return 0;
+ }
+ 
++/*
++ * Move all @ln's children after @ln in the table.
++ */
+ static struct libscols_line *move_line_and_children(struct libscols_line *ln, struct libscols_line *pre)
+ {
+ 	if (pre) {
+ 		list_del_init(&ln->ln_lines);			/* remove from old position */
+-	        list_add(&ln->ln_lines, &pre->ln_lines);        /* add to the new place (behind @pre) */
++	        list_add(&ln->ln_lines, &pre->ln_lines);        /* add to the new place (after @pre) */
+ 	}
+ 	pre = ln;
+ 
+@@ -1418,7 +1442,10 @@ static struct libscols_line *move_line_and_children(struct libscols_line *ln, st
+  * @tb: table
+  *
+  * Reorders lines in the table by parent->child relation. Note that order of
+- * the lines in the table is independent on the tree hierarchy.
++ * the lines in the table is independent on the tree hierarchy by default.
++ *
++ * The children of the lines are sorted according to the default sort column
++ * if scols_sort_table() has been previously called.
+  *
+  * Since: 2.30
+  *
+@@ -1434,13 +1461,12 @@ int scols_sort_table_by_tree(struct libscols_table *tb)
+ 
+ 	DBG(TAB, ul_debugobj(tb, "sorting table by tree"));
+ 
+-	scols_reset_iter(&itr, SCOLS_ITER_FORWARD);
+-	while (scols_table_next_line(tb, &itr, &ln) == 0) {
+-		if (ln->parent)
+-			continue;
++	if (tb->dflt_sort_column)
++		__scols_sort_tree(tb, tb->dflt_sort_column);
+ 
++	scols_reset_iter(&itr, SCOLS_ITER_FORWARD);
++	while (scols_table_next_line(tb, &itr, &ln) == 0)
+ 		move_line_and_children(ln, NULL);
+-	}
+ 
+ 	return 0;
+ }
+diff --git a/libsmartcols/src/table_print.c b/libsmartcols/src/table_print.c
+index 8ecfc30e2..337dbbd84 100644
+--- a/libsmartcols/src/table_print.c
++++ b/libsmartcols/src/table_print.c
+@@ -585,11 +585,9 @@ static int cell_to_buffer(struct libscols_table *tb,
+ 
+ 	ce = scols_line_get_cell(ln, cl->seqnum);
+ 	data = ce ? scols_cell_get_data(ce) : NULL;
+-	if (!data)
+-		return 0;
+ 
+ 	if (!scols_column_is_tree(cl))
+-		return buffer_set_data(buf, data);
++		return data ? buffer_set_data(buf, data) : 0;
+ 
+ 	/*
+ 	 * Tree stuff
+@@ -605,7 +603,7 @@ static int cell_to_buffer(struct libscols_table *tb,
+ 			buffer_set_art_index(buf);
+ 	}
+ 
+-	if (!rc)
++	if (!rc && data)
+ 		rc = buffer_append_data(buf, data);
+ 	return rc;
+ }
+diff --git a/misc-utils/lsblk.c b/misc-utils/lsblk.c
+index d0369d3e7..cc7894ecf 100644
+--- a/misc-utils/lsblk.c
++++ b/misc-utils/lsblk.c
+@@ -1894,10 +1894,12 @@ int main(int argc, char *argv[])
+ 		 * /sys is no more sorted */
+ 		lsblk->sort_id = COL_MAJMIN;
+ 
+-	/* For --inverse --list we still follow parent->child relation */
+-	if (lsblk->inverse && !(lsblk->flags & LSBLK_TREE))
++	/* For --{inverse,raw,pairs} --list we still follow parent->child relation */
++	if (!(lsblk->flags & LSBLK_TREE)
++	    && (lsblk->inverse || lsblk->flags & LSBLK_EXPORT || lsblk->flags & LSBLK_RAW))
+ 		lsblk->force_tree_order = 1;
+ 
++
+ 	if (lsblk->sort_id >= 0 && column_id_to_number(lsblk->sort_id) < 0) {
+ 		/* the sort column is not between output columns -- add as hidden */
+ 		add_column(lsblk->sort_id);
+-- 
+2.31.1
+

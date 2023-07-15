@@ -1,0 +1,49 @@
+From 84009d2236c73efe7dc4b74372734d5b3306670b Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Wed, 5 Sep 2018 11:51:22 +0200
+Subject: [PATCH 64/72] script: be sensitive to another SIGCHLD ssi_codes
+
+The current signalfd handler cares on CLD_EXITED only. It's pretty
+insufficient as there is more situations (and codes) when child no
+more running.
+
+Addresses: https://github.com/karelzak/util-linux/issues/686
+Upstream: http://github.com/util-linux/util-linux/commit/27afe5016842c22d256ea9f88b598d637ca0df84
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ term-utils/script.c | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/term-utils/script.c b/term-utils/script.c
+index d5ffa27f1..ff5f808de 100644
+--- a/term-utils/script.c
++++ b/term-utils/script.c
+@@ -402,10 +402,15 @@ static void handle_signal(struct script_control *ctl, int fd)
+ 
+ 	switch (info.ssi_signo) {
+ 	case SIGCHLD:
+-		DBG(SIGNAL, ul_debug(" get signal SIGCHLD"));
+-		if (info.ssi_code == CLD_EXITED) {
++		DBG(SIGNAL, ul_debug(" get signal SIGCHLD [ssi_code=%d, ssi_status=%d]",
++							info.ssi_code, info.ssi_status));
++		if (info.ssi_code == CLD_EXITED
++		    || info.ssi_code == CLD_KILLED
++		    || info.ssi_code == CLD_DUMPED) {
+ 			wait_for_child(ctl, 0);
+ 			ctl->poll_timeout = 10;
++
++		/* In case of ssi_code is CLD_TRAPPED, CLD_STOPPED, or CLD_CONTINUED */
+ 		} else if (info.ssi_status == SIGSTOP && ctl->child) {
+ 			DBG(SIGNAL, ul_debug(" child stop by SIGSTOP -- stop parent too"));
+ 			kill(getpid(), SIGSTOP);
+@@ -433,6 +438,7 @@ static void handle_signal(struct script_control *ctl, int fd)
+ 	default:
+ 		abort();
+ 	}
++	DBG(SIGNAL, ul_debug("signal handle on FD %d done", fd));
+ }
+ 
+ static void do_io(struct script_control *ctl)
+-- 
+2.31.1
+

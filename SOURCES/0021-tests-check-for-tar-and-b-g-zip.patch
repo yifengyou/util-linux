@@ -1,0 +1,42 @@
+From 0c57e5fedce0e627debda3258e2203842b427572 Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Tue, 11 Dec 2018 11:44:48 +0100
+Subject: [PATCH] tests: check for tar and {b,g}zip
+
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1681062
+Upstream: http://github.com/karelzak/util-linux/commit/9e07672bb9989c88f6a7d8b8ab23158701fb4eec
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ tests/ts/lscpu/lscpu | 2 ++
+ tests/ts/lsmem/lsmem | 2 ++
+ 2 files changed, 4 insertions(+)
+
+diff --git a/tests/ts/lscpu/lscpu b/tests/ts/lscpu/lscpu
+index 70fbce9f3..ccf271149 100755
+--- a/tests/ts/lscpu/lscpu
++++ b/tests/ts/lscpu/lscpu
+@@ -22,6 +22,8 @@ TS_TOPDIR="${0%/*}/../.."
+ 
+ ts_init "$*"
+ 
++ts_check_prog "tar"
++ts_check_prog "gzip"
+ ts_check_test_command "$TS_CMD_LSCPU"
+ 
+ for dump in $(ls $TS_SELF/dumps/*.tar.gz | sort); do
+diff --git a/tests/ts/lsmem/lsmem b/tests/ts/lsmem/lsmem
+index f1a643f85..bedf4143f 100755
+--- a/tests/ts/lsmem/lsmem
++++ b/tests/ts/lsmem/lsmem
+@@ -21,6 +21,8 @@ TS_TOPDIR="${0%/*}/../.."
+ ts_init "$*"
+ 
+ ts_check_test_command "$TS_CMD_LSMEM"
++ts_check_prog "tar"
++ts_check_prog "bzip2"
+ 
+ LSCOLUMNS="RANGE,SIZE,STATE,REMOVABLE,BLOCK,NODE"
+ 
+-- 
+2.20.1
+

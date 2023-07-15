@@ -1,0 +1,30 @@
+From a0753a5452e293da56e1e8579d17b4eb19a7d6a2 Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Fri, 30 Nov 2018 12:22:48 +0100
+Subject: [PATCH 09/14] tests: enlarge backing file for fstab-btrfs
+
+It seems the new limit for Btrfs is 47MiB.
+
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1656437
+Upstream: http://github.com/karelzak/util-linux/commit/7174b93dfda08f87228bb7aec6274fe60af581bd
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ tests/ts/mount/fstab-btrfs | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tests/ts/mount/fstab-btrfs b/tests/ts/mount/fstab-btrfs
+index 090f52304..54c6bb8ba 100755
+--- a/tests/ts/mount/fstab-btrfs
++++ b/tests/ts/mount/fstab-btrfs
+@@ -42,7 +42,7 @@ TS_MOUNTPOINT_SUBVOL="$TS_MOUNTPOINT-subvol"
+ TS_MOUNTPOINT_SUBVOLID="$TS_MOUNTPOINT-subvolid"
+ TS_MOUNTPOINT_BIND="$TS_MOUNTPOINT-bind"
+ 
+-ts_device_init 42
++ts_device_init 50
+ DEVICE=$TS_LODEV
+ [ -d "$TS_MOUNTPOINT_CREATE" ] || mkdir -p "$TS_MOUNTPOINT_CREATE"
+ [ -d "$TS_MOUNTPOINT_DEFAULT" ] || mkdir -p "$TS_MOUNTPOINT_DEFAULT"
+-- 
+2.17.2
+

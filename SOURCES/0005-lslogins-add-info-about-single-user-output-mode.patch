@@ -1,0 +1,76 @@
+From e73085fe74356df96b0e694c906f22f9c71a56c7 Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Mon, 13 Aug 2018 13:49:26 +0200
+Subject: [PATCH 5/6] lslogins: add info about single-user output mode
+
+The supported command line synopsis is also
+
+	lslogins foo
+
+and it provides different output than
+
+	lslogins -l foo
+
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1614967
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ login-utils/lslogins.1 | 11 ++++++++++-
+ login-utils/lslogins.c |  2 +-
+ 2 files changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/login-utils/lslogins.1 b/login-utils/lslogins.1
+index bd6955f82..effd42790 100644
+--- a/login-utils/lslogins.1
++++ b/login-utils/lslogins.1
+@@ -9,10 +9,17 @@ lslogins \- display information about known users in the system
+ .RB [ \-s | \-u [ =\fIUID ]]
+ .RB [ \-g " \fIgroups\fR]"
+ .RB [ \-l " \fIlogins\fR]"
++.RB [\fIusername\fR]
+ .SH DESCRIPTION
+ .PP
+ Examine the wtmp and btmp logs, /etc/shadow (if necessary) and /etc/passwd
+ and output the desired data.
++
++The optional argument \fIusername\fR forces
++.BR lslogins
++to print all available details about the specified user only. In this case the
++output format is different than in case of \fB\-l\fR or \fB\-g\fR.
++
+ .PP
+ The default action is to list info about all the users in the system.
+ .SH OPTIONS
+@@ -39,7 +46,8 @@ Show information about supplementary groups.
+ .TP
+ \fB\-g\fR, \fB\-\-groups\fR=\fIgroups\fR
+ Only show data of users belonging to \fIgroups\fR.  More than one group
+-may be specified; the list has to be comma-separated.
++may be specified; the list has to be comma-separated.  The unknown group
++names are ignored.
+ 
+ Note that relation between user and group may be invisible for primary group if
+ the user is not explicitly specify as group member (e.g. in /etc/group). If the
+@@ -55,6 +63,7 @@ Display data containing information about the users' last login sessions.
+ \fB\-l\fR, \fB\-\-logins\fR=\fIlogins\fR
+ Only show data of users with a login specified in \fIlogins\fR (user names or user
+ IDS).  More than one login may be specified; the list has to be comma-separated.
++The unknown login names are ignored.
+ .TP
+ \fB\-n\fR, \fB\-\-newline\fR
+ Display each piece of information on a separate line.
+diff --git a/login-utils/lslogins.c b/login-utils/lslogins.c
+index 169962b72..501778e54 100644
+--- a/login-utils/lslogins.c
++++ b/login-utils/lslogins.c
+@@ -1293,7 +1293,7 @@ static void __attribute__((__noreturn__)) usage(void)
+ 	size_t i;
+ 
+ 	fputs(USAGE_HEADER, out);
+-	fprintf(out, _(" %s [options]\n"), program_invocation_short_name);
++	fprintf(out, _(" %s [options] [<username>]\n"), program_invocation_short_name);
+ 
+ 	fputs(USAGE_SEPARATOR, out);
+ 	fputs(_("Display information about known users in the system.\n"), out);
+-- 
+2.14.4
+

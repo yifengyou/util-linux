@@ -1,0 +1,135 @@
+From 9f7fe1b83fcc508dc3e05815d03dbbb752a1cfba Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Fri, 1 Jun 2018 12:16:19 +0200
+Subject: [PATCH 63/63] libmount: improve MS_REC usage
+
+libmount allows to split one library (mount(8)) call to multiple mount(2)
+syscalls, for example
+
+   --rbind --make-rslave
+
+in this case we have to be careful with MS_REC because the flag is
+applied to multiple operations.
+
+ # strace -e mount mount --rbind --make-rslave /mnt/A /mnt/B
+
+Old version:
+
+ mount("/mnt/A", "/mnt/B", 0x13ecac0, MS_MGC_VAL|MS_BIND, NULL) = 0
+ mount("none", "/mnt/B", NULL, MS_REC|MS_SLAVE, NULL) = 0
+
+Fixed version:
+
+ mount("/mnt/A", "/mnt/B", 0x1f22ac0, MS_MGC_VAL|MS_BIND|MS_REC, NULL) = 0
+ mount("none", "/mnt/B", NULL, MS_REC|MS_SLAVE, NULL) = 0
+
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1946921
+Upstream: http://github.com/karelzak/util-linux/commit/816773b475900909d42c2c8282a6ac50252cac22
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ libmount/src/context.c       |  5 +++++
+ libmount/src/context_mount.c | 25 ++++++++++++++++++++++---
+ libmount/src/optstr.c        |  9 ++++++---
+ 3 files changed, 33 insertions(+), 6 deletions(-)
+
+diff --git a/libmount/src/context.c b/libmount/src/context.c
+index e7f1ee934..8e00b75a9 100644
+--- a/libmount/src/context.c
++++ b/libmount/src/context.c
+@@ -1375,6 +1375,11 @@ struct libmnt_lock *mnt_context_get_lock(struct libmnt_context *cxt)
+  *
+  * both of these calls have the same effect.
+  *
++ * Be careful if you want to use MS_REC flag -- in this case the bit is applied
++ * to all bind/slave/etc. options. If you want to mix more propadation flags
++ * and/or bind, move operations than it's better to specify mount options by
++ * strings.
++ *
+  * Returns: 0 on success, negative number in case of error.
+  */
+ int mnt_context_set_mflags(struct libmnt_context *cxt, unsigned long flags)
+diff --git a/libmount/src/context_mount.c b/libmount/src/context_mount.c
+index b88e60507..a8e84127c 100644
+--- a/libmount/src/context_mount.c
++++ b/libmount/src/context_mount.c
+@@ -73,6 +73,7 @@ static int init_propagation(struct libmnt_context *cxt)
+ 	char *opts = (char *) mnt_fs_get_vfs_options(cxt->fs);
+ 	size_t namesz;
+ 	struct libmnt_optmap const *maps[1];
++	int rec_count = 0;
+ 
+ 	if (!opts)
+ 		return 0;
+@@ -86,9 +87,19 @@ static int init_propagation(struct libmnt_context *cxt)
+ 		struct libmnt_addmount *ad;
+ 		int rc;
+ 
+-		if (!mnt_optmap_get_entry(maps, 1, name, namesz, &ent)
+-		    || !ent
+-		    || !(ent->id & MS_PROPAGATION))
++		if (!mnt_optmap_get_entry(maps, 1, name, namesz, &ent) || !ent)
++			continue;
++
++		DBG(CXT, ul_debugobj(cxt, " checking %s", ent->name));
++
++		/* Note that MS_REC may be used for more flags, so we have to keep
++		 * track about number of recursive options to keep the MS_REC in the
++		 * mountflags if necessary.
++		 */
++		if (ent->id & MS_REC)
++			rec_count++;
++
++		if (!(ent->id & MS_PROPAGATION))
+ 			continue;
+ 
+ 		ad = mnt_new_addmount();
+@@ -96,13 +107,21 @@ static int init_propagation(struct libmnt_context *cxt)
+ 			return -ENOMEM;
+ 
+ 		ad->mountflags = ent->id;
++		DBG(CXT, ul_debugobj(cxt, " adding extra mount(2) call for %s", ent->name));
+ 		rc = mnt_context_append_additional_mount(cxt, ad);
+ 		if (rc)
+ 			return rc;
+ 
++		DBG(CXT, ul_debugobj(cxt, " removing %s from primary mount(2) call", ent->name));
+ 		cxt->mountflags &= ~ent->id;
++
++		if (ent->id & MS_REC)
++			rec_count--;
+ 	}
+ 
++	if (rec_count)
++		cxt->mountflags |= MS_REC;
++
+ 	return 0;
+ }
+ 
+diff --git a/libmount/src/optstr.c b/libmount/src/optstr.c
+index 8248f0dee..cc077ffd9 100644
+--- a/libmount/src/optstr.c
++++ b/libmount/src/optstr.c
+@@ -800,14 +800,17 @@ int mnt_optstr_apply_flags(char **optstr, unsigned long flags,
+ 					if (rc)
+ 						goto err;
+ 				}
+-				if (!(ent->mask & MNT_INVERT))
++				if (!(ent->mask & MNT_INVERT)) {
+ 					fl &= ~ent->id;
++					if (ent->id & MS_REC)
++						fl |= MS_REC;
++				}
+ 			}
+ 		}
+ 	}
+ 
+-	/* add missing options */
+-	if (fl) {
++	/* add missing options (but ignore fl if contains MS_REC only) */
++	if (fl && fl != MS_REC) {
+ 		const struct libmnt_optmap *ent;
+ 		char *p;
+ 
+-- 
+2.31.1
+

@@ -1,0 +1,40 @@
+From c223ad8f05d2d20a80e21dbb4b6240f11909f92c Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Thu, 14 Jul 2022 13:10:16 +0200
+Subject: lscpu: don;t read from HW when use /sys snapshot
+
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=2069187
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ sys-utils/lscpu.c | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/sys-utils/lscpu.c b/sys-utils/lscpu.c
+index 70a797dd6..01f8fba35 100644
+--- a/sys-utils/lscpu.c
++++ b/sys-utils/lscpu.c
+@@ -1850,7 +1850,10 @@ print_summary(struct lscpu_desc *desc, struct lscpu_modifier *mod)
+ 			}
+ 		} else {
+ 			if (desc->is_cluster) {
+-				int sockets = get_number_of_physical_sockets_from_dmi();
++				int sockets = 0;
++
++				if (mod->system == SYSTEM_LIVE)
++					sockets = get_number_of_physical_sockets_from_dmi();
+ 
+ 				if (sockets > 0)
+ 					add_summary_n(tb, _("Socket(s):"), sockets);
+@@ -2109,7 +2112,8 @@ int main(int argc, char *argv[])
+ 		qsort(desc->ecaches, desc->necaches,
+ 				sizeof(struct cpu_cache), cachecmp);
+ 
+-	desc->is_cluster = is_fallback_to_cluster(desc);
++	if (mod->system == SYSTEM_LIVE)
++		desc->is_cluster = is_fallback_to_cluster(desc);
+ 
+ 	read_nodes(desc);
+ 	read_hypervisor(desc, mod);
+-- 
+2.36.1
+

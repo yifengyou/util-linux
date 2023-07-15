@@ -1,0 +1,115 @@
+From f942ba2c4c14b6bf7720e8316afe1971231553bc Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Fri, 31 Aug 2018 12:27:32 +0200
+Subject: [PATCH 7/8] libuuid: fix name-based UUIDs
+
+The current version is not fully compatible with RFC4122. It
+incorrectly encodes UUID variant
+
+	xxxxxxxx-xxxx-Mxxx-Nxxx-xxxxxxxxxxxx
+
+where M is UUID version and N is UUID variant.
+
+ $ python -c "import uuid ; print(uuid.uuid5(uuid.UUID(int=0), 'foo'))"
+ aa752cea-8222-5bc8-acd9-555b090c0ccb
+                    ^^
+
+Old version:
+
+ $ uuidgen --namespace 00000000-0000-0000-0000-000000000000 --name 'foo' --sha1
+ aa752cea-8222-5bc8-8cd9-555b090c0ccb
+                    ^^
+
+Fixed version:
+ ./uuidgen --namespace 00000000-0000-0000-0000-000000000000 --name 'foo' --sha1;
+ aa752cea-8222-5bc8-acd9-555b090c0ccb
+                    ^^
+
+The patch uses uuid_unpack and uuid_pack. It makes code more readable
+and allow to access proper octens. The same way we already use for
+time and random based UUIDs.
+
+Upstream: http://github.com/karelzak/util-linux/commit/d6ddf07d31dfdc894eb8e7e6842aa856342c526e
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1624877
+Addresses: https://github.com/karelzak/util-linux/issues/683
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ libuuid/src/gen_uuid.c | 34 ++++++++++++++++------------------
+ 1 file changed, 16 insertions(+), 18 deletions(-)
+
+diff --git a/libuuid/src/gen_uuid.c b/libuuid/src/gen_uuid.c
+index a374e75c9..27c135db5 100644
+--- a/libuuid/src/gen_uuid.c
++++ b/libuuid/src/gen_uuid.c
+@@ -96,9 +96,6 @@
+ #define THREAD_LOCAL static
+ #endif
+ 
+-/* index with UUID_VARIANT_xxx and shift 5 bits */
+-static unsigned char variant_bits[] = { 0x00, 0x04, 0x06, 0x07 };
+-
+ #ifdef _WIN32
+ static void gettimeofday (struct timeval *tv, void *dummy)
+ {
+@@ -566,21 +563,22 @@ void uuid_generate_md5(uuid_t out, const uuid_t ns, const char *name, size_t len
+ {
+ 	UL_MD5_CTX ctx;
+ 	char hash[UL_MD5LENGTH];
++	uuid_t buf;
++	struct uuid uu;
+ 
+ 	ul_MD5Init(&ctx);
+-	/* hash concatenation of well-known UUID with name */
+ 	ul_MD5Update(&ctx, ns, sizeof(uuid_t));
+ 	ul_MD5Update(&ctx, (const unsigned char *)name, len);
+-
+ 	ul_MD5Final((unsigned char *)hash, &ctx);
+ 
+-	memcpy(out, hash, sizeof(uuid_t));
++	assert(sizeof(buf) <= sizeof(hash));
+ 
+-	out[6] &= ~(UUID_TYPE_MASK << UUID_TYPE_SHIFT);
+-	out[6] |= (UUID_TYPE_DCE_MD5 << UUID_TYPE_SHIFT);
++	memcpy(buf, hash, sizeof(buf));
++	uuid_unpack(buf, &uu);
+ 
+-	out[8] &= ~(UUID_VARIANT_MASK << UUID_VARIANT_SHIFT);
+-	out[8] |= (variant_bits[UUID_VARIANT_DCE] << UUID_VARIANT_SHIFT);
++	uu.clock_seq = (uu.clock_seq & 0x3FFF) | 0x8000;
++	uu.time_hi_and_version = (uu.time_hi_and_version & 0x0FFF) | 0x3000;
++	uuid_pack(&uu, out);
+ }
+ 
+ /*
+@@ -591,20 +589,20 @@ void uuid_generate_sha1(uuid_t out, const uuid_t ns, const char *name, size_t le
+ {
+ 	UL_SHA1_CTX ctx;
+ 	char hash[UL_SHA1LENGTH];
++	uuid_t buf;
++	struct uuid uu;
+ 
+ 	ul_SHA1Init(&ctx);
+-	/* hash concatenation of well-known UUID with name */
+ 	ul_SHA1Update(&ctx, ns, sizeof(uuid_t));
+ 	ul_SHA1Update(&ctx, (const unsigned char *)name, len);
+-
+ 	ul_SHA1Final((unsigned char *)hash, &ctx);
+ 
+-	memcpy(out, hash, sizeof(uuid_t));
++	assert(sizeof(buf) <= sizeof(hash));
+ 
+-	out[6] &= ~(UUID_TYPE_MASK << UUID_TYPE_SHIFT);
+-	out[6] |= (UUID_TYPE_DCE_SHA1 << UUID_TYPE_SHIFT);
++	memcpy(buf, hash, sizeof(buf));
++	uuid_unpack(buf, &uu);
+ 
+-	out[8] &= ~(UUID_VARIANT_MASK << UUID_VARIANT_SHIFT);
+-	out[8] |= (variant_bits[UUID_VARIANT_DCE] << UUID_VARIANT_SHIFT);
++	uu.clock_seq = (uu.clock_seq & 0x3FFF) | 0x8000;
++	uu.time_hi_and_version = (uu.time_hi_and_version & 0x0FFF) | 0x5000;
++	uuid_pack(&uu, out);
+ }
+-
+-- 
+2.14.4
+

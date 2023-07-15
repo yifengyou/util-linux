@@ -1,0 +1,66 @@
+From a95ff5ed155c29734824f3a79350678901b22e43 Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Thu, 11 Feb 2021 12:44:44 +0100
+Subject: tests: don't reply on scsi_debug partitions
+
+The disk layout as created by scsi_debug depends on kernel version.
+Let's make the partition sizes hardcoded in our tests than rely on
+kernel.
+
+Signed-off-by: Karel Zak <kzak@redhat.com>
+Upstream: http://github.com/util-linux/util-linux/commit/15a37d00e5e59f0f628d0a6b6cd2f9636702fd7c
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=2142496
+---
+ tests/expected/partx/partx-detect-parts |  6 +++---
+ tests/ts/partx/partx                    | 14 +++++++++++---
+ 2 files changed, 14 insertions(+), 6 deletions(-)
+
+diff --git a/tests/expected/partx/partx-detect-parts b/tests/expected/partx/partx-detect-parts
+index 33d42a58c..0adc85577 100644
+--- a/tests/expected/partx/partx-detect-parts
++++ b/tests/expected/partx/partx-detect-parts
+@@ -1,5 +1,5 @@
+ NR START    END SECTORS  SIZE NAME UUID
+- 1    32  33791   33760 16.5M      
+- 2 33792  67583   33792 16.5M      
+- 3 67584 102399   34816   17M      
++ 1    32  33791   33760 16.5M      1ddc8a79-01
++ 2 33792  67583   33792 16.5M      1ddc8a79-02
++ 3 67584 102399   34816   17M      1ddc8a79-03
+ OK
+diff --git a/tests/ts/partx/partx b/tests/ts/partx/partx
+index 84c286a94..6514ae62c 100755
+--- a/tests/ts/partx/partx
++++ b/tests/ts/partx/partx
+@@ -26,6 +26,7 @@ ts_init "$*"
+ ts_check_test_command "$TS_CMD_PARTX"
+ ts_check_test_command "$TS_CMD_ADDPART"
+ ts_check_test_command "$TS_CMD_DELPART"
++ts_check_test_command "$TS_CMD_SFDISK"
+ 
+ ts_skip_nonroot
+ 
+@@ -70,10 +71,17 @@ ts_init_subtest "delpart"
+ } >$TS_OUTPUT 2>&1
+ ts_finalize_subtest
+ 
+-ts_scsi_debug_rmmod
+ 
+-# set global variable TS_DEVICE
+-ts_scsi_debug_init dev_size_mb=50 num_parts=$PARTS
++udevadm settle
++$TS_CMD_SFDISK $TS_DEVICE &> /dev/null <<EOF
++label: dos
++label-id: 0x1ddc8a79
++32,33760,,
++33792,33792,,
++67584,34816,,
++EOF
++udevadm settle
++
+ 
+ ts_init_subtest "detect-parts"
+ {
+-- 
+2.39.1
+

@@ -1,0 +1,46 @@
+From f575b6e0857087f46d54f494d9a435af715ea19d Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Thu, 1 Oct 2020 10:40:27 +0200
+Subject: [PATCH 43/55] chrt: use SCHED_FLAG_RESET_ON_FORK for sched_setattr()
+
+Reviewed by many people, used for years (but probably nobody uses
+SCHED_DEADLINE with reset-on-fork), but we all missed:
+
+- sched_setscheduler() uses SCHED_RESET_ON_FORK (0x40000000)
+- sched_setattr() uses SCHED_FLAG_RESET_ON_FORK (0x01)
+
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1884194
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ schedutils/chrt.c | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/schedutils/chrt.c b/schedutils/chrt.c
+index b08c78ed8..15556bbad 100644
+--- a/schedutils/chrt.c
++++ b/schedutils/chrt.c
+@@ -123,7 +123,7 @@ struct chrt_ctl {
+ 	uint64_t period;
+ 
+ 	unsigned int all_tasks : 1,		/* all threads of the PID */
+-		     reset_on_fork : 1,		/* SCHED_RESET_ON_FORK */
++		     reset_on_fork : 1,		/* SCHED_RESET_ON_FORK or SCHED_FLAG_RESET_ON_FORK */
+ 		     altered : 1,		/* sched_set**() used */
+ 		     verbose : 1;		/* verbose output */
+ };
+@@ -376,9 +376,10 @@ static int set_sched_one(struct chrt_ctl *ctl, pid_t pid)
+ 	sa.sched_period   = ctl->period;
+ 	sa.sched_deadline = ctl->deadline;
+ 
+-# ifdef SCHED_RESET_ON_FORK
++# ifdef SCHED_FLAG_RESET_ON_FORK
++	/* Don't use SCHED_RESET_ON_FORK for sched_setattr()! */
+ 	if (ctl->reset_on_fork)
+-		sa.sched_flags |= SCHED_RESET_ON_FORK;
++		sa.sched_flags |= SCHED_FLAG_RESET_ON_FORK;
+ # endif
+ 	errno = 0;
+ 	return sched_setattr(pid, &sa, 0);
+-- 
+2.29.2
+

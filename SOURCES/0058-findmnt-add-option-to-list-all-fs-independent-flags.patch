@@ -1,0 +1,212 @@
+From 2f04609de018013a36396e6a10b317607fb0b625 Mon Sep 17 00:00:00 2001
+From: Roberto Bergantinos Corpas <rbergant@redhat.com>
+Date: Tue, 12 Jan 2021 11:58:53 +0100
+Subject: [PATCH 58/63] findmnt: add option to list all fs-independent flags
+
+It might be useful for security auditing purposes list all possible
+mount flags/options including default set which are normally not listed.
+
+This patch adds "--vfs-all" option to list all fs-independent flags
+on VFS-OPTIONS column, as well as libmount funcionality to accomplish
+it.
+
+i.e.:
+
+$ findmnt -o VFS-OPTIONS
+VFS-OPTIONS
+rw,relatime
+rw,nosuid,nodev,noexec,relatime
+rw,nosuid,nodev,noexec,relatime
+ro,nosuid,nodev,noexec
+...
+
+$ findmnt --vfs-all -o VFS-OPTIONS
+VFS-OPTIONS
+rw,exec,suid,dev,async,loud,nomand,atime,noiversion,diratime,relatime,nostrictatime,nolazytime,symfollow
+rw,noexec,nosuid,nodev,async,loud,nomand,atime,noiversion,diratime,relatime,nostrictatime,nolazytime,symfollow
+rw,noexec,nosuid,nodev,async,loud,nomand,atime,noiversion,diratime,relatime,nostrictatime,nolazytime,symfollow
+ro,noexec,nosuid,nodev,async,loud,nomand,atime,noiversion,diratime,norelatime,nostrictatime,nolazytime,symfollow
+...
+
+[kzak@redhat.com: - cleanup coding style and comments]
+
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1917852
+Upstream: http://github.com/karelzak/util-linux/commit/ff21f476f85ac9855452f4aac43a231c3c1e2ebc
+Signed-off-by: Roberto Bergantinos Corpas <rbergant@redhat.com>
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ libmount/docs/libmount-sections.txt |  1 +
+ libmount/src/fs.c                   | 32 +++++++++++++++++++++++++++++
+ libmount/src/libmount.h.in          |  1 +
+ libmount/src/libmount.sym           |  4 ++++
+ misc-utils/findmnt.8                |  6 ++++++
+ misc-utils/findmnt.c                | 15 +++++++++++---
+ misc-utils/findmnt.h                |  2 ++
+ 7 files changed, 58 insertions(+), 3 deletions(-)
+
+diff --git a/libmount/docs/libmount-sections.txt b/libmount/docs/libmount-sections.txt
+index dea724b2f..f296c0611 100644
+--- a/libmount/docs/libmount-sections.txt
++++ b/libmount/docs/libmount-sections.txt
+@@ -224,6 +224,7 @@ mnt_fs_get_usedsize
+ mnt_fs_get_userdata
+ mnt_fs_get_user_options
+ mnt_fs_get_vfs_options
++mnt_fs_get_vfs_options_all
+ mnt_fs_is_kernel
+ mnt_fs_is_netfs
+ mnt_fs_is_pseudofs
+diff --git a/libmount/src/fs.c b/libmount/src/fs.c
+index aae4961c3..34c09d66b 100644
+--- a/libmount/src/fs.c
++++ b/libmount/src/fs.c
+@@ -924,6 +924,38 @@ const char *mnt_fs_get_vfs_options(struct libmnt_fs *fs)
+ 	return fs ? fs->vfs_optstr : NULL;
+ }
+ 
++/**
++ * mnt_fs_get_vfs_options_all:
++ * @fs: fstab/mtab entry pointer
++ *
++ * Returns: pointer to newlly allocated string (can be freed by free(3)) or
++ * NULL in case of error.  The string contains all (including defaults) mount
++ * options.
++ */
++char *mnt_fs_get_vfs_options_all(struct libmnt_fs *fs)
++{
++	const struct libmnt_optmap *map = mnt_get_builtin_optmap(MNT_LINUX_MAP);
++	const struct libmnt_optmap *ent;
++	const char *opts = mnt_fs_get_options(fs);
++	char *result = NULL;
++	unsigned long flags = 0;
++
++	if (!opts || mnt_optstr_get_flags(opts, &flags, map))
++		return NULL;
++
++	for (ent = map ; ent && ent->name ; ent++){
++		if (ent->id & flags) { /* non-default value */
++			if (!(ent->mask & MNT_INVERT))
++				mnt_optstr_append_option(&result, ent->name, NULL);
++			else
++				continue;
++		} else if (ent->mask & MNT_INVERT)
++			mnt_optstr_append_option(&result, ent->name, NULL);
++	}
++
++	return result;
++}
++
+ /**
+  * mnt_fs_get_user_options:
+  * @fs: fstab/mtab entry pointer
+diff --git a/libmount/src/libmount.h.in b/libmount/src/libmount.h.in
+index c61514b59..1d9a053e0 100644
+--- a/libmount/src/libmount.h.in
++++ b/libmount/src/libmount.h.in
+@@ -452,6 +452,7 @@ extern int mnt_fs_get_option(struct libmnt_fs *fs, const char *name,
+ extern const char *mnt_fs_get_fs_options(struct libmnt_fs *fs);
+ extern const char *mnt_fs_get_vfs_options(struct libmnt_fs *fs);
+ extern const char *mnt_fs_get_user_options(struct libmnt_fs *fs);
++extern char *mnt_fs_get_vfs_options_all(struct libmnt_fs *fs);
+ 
+ extern const char *mnt_fs_get_attributes(struct libmnt_fs *fs);
+ extern int mnt_fs_set_attributes(struct libmnt_fs *fs, const char *optstr);
+diff --git a/libmount/src/libmount.sym b/libmount/src/libmount.sym
+index ca16cafa1..636c564eb 100644
+--- a/libmount/src/libmount.sym
++++ b/libmount/src/libmount.sym
+@@ -322,3 +322,7 @@ MOUNT_2.30 {
+ 	mnt_context_enable_rwonly_mount;
+ 	mnt_context_get_excode;
+ } MOUNT_2.28;
++
++MOUNT_2_37 {
++	mnt_fs_get_vfs_options_all;
++} MOUNT_2.30;
+diff --git a/misc-utils/findmnt.8 b/misc-utils/findmnt.8
+index 58dd38625..41a37cb5f 100644
+--- a/misc-utils/findmnt.8
++++ b/misc-utils/findmnt.8
+@@ -249,6 +249,12 @@ It's possible to specify source (device) or target (mountpoint) to filter mount
+ .TP
+ .BR "\-\-verbose"
+ Force findmnt to print more information (\fB\-\-verify\fP only for now).
++.TP
++.B \-\-vfs-all
++When used with
++.BR VFS-OPTIONS
++column, print all VFS (fs-independent) flags.  This option is designed for auditing purposes to
++list also default VFS kernel mount options which are normally not listed.
+ .SH EXAMPLES
+ .IP "\fBfindmnt \-\-fstab \-t nfs\fP"
+ Prints all NFS filesystems defined in
+diff --git a/misc-utils/findmnt.c b/misc-utils/findmnt.c
+index 184b6f7d7..a7b3af4f4 100644
+--- a/misc-utils/findmnt.c
++++ b/misc-utils/findmnt.c
+@@ -542,7 +542,10 @@ static char *get_data(struct libmnt_fs *fs, int num)
+ 		str = xstrdup(mnt_fs_get_options(fs));
+ 		break;
+ 	case COL_VFS_OPTIONS:
+-		str = xstrdup(mnt_fs_get_vfs_options(fs));
++		if (flags & FL_VFS_ALL)
++			str = mnt_fs_get_vfs_options_all(fs);
++		else if (mnt_fs_get_vfs_options(fs))
++			str = xstrdup(mnt_fs_get_vfs_options(fs));
+ 		break;
+ 	case COL_FS_OPTIONS:
+ 		str = xstrdup(mnt_fs_get_fs_options(fs));
+@@ -1243,6 +1246,7 @@ static void __attribute__((__noreturn__)) usage(void)
+ 	fputc('\n', out);
+ 	fputs(_(" -x, --verify           verify mount table content (default is fstab)\n"), out);
+ 	fputs(_("     --verbose          print more details\n"), out);
++	fputs(_("     --vfs-all          print all VFS options\n"), out);
+ 
+ 	fputs(USAGE_SEPARATOR, out);
+ 	printf(USAGE_HELP_OPTIONS(24));
+@@ -1271,8 +1275,9 @@ int main(int argc, char *argv[])
+ 	struct libscols_table *table = NULL;
+ 
+ 	enum {
+-                FINDMNT_OPT_VERBOSE = CHAR_MAX + 1,
+-		FINDMNT_OPT_TREE
++		FINDMNT_OPT_VERBOSE = CHAR_MAX + 1,
++		FINDMNT_OPT_TREE,
++		FINDMNT_OPT_VFS_ALL
+ 	};
+ 
+ 	static const struct option longopts[] = {
+@@ -1313,6 +1318,7 @@ int main(int argc, char *argv[])
+ 		{ "version",	    no_argument,       NULL, 'V'		 },
+ 		{ "verbose",	    no_argument,       NULL, FINDMNT_OPT_VERBOSE },
+ 		{ "tree",	    no_argument,       NULL, FINDMNT_OPT_TREE	 },
++		{ "vfs-all",	    no_argument,       NULL, FINDMNT_OPT_VFS_ALL },
+ 		{ NULL, 0, NULL, 0 }
+ 	};
+ 
+@@ -1479,6 +1485,9 @@ int main(int argc, char *argv[])
+ 		case FINDMNT_OPT_TREE:
+ 			force_tree = 1;
+ 			break;
++		case FINDMNT_OPT_VFS_ALL:
++			flags |= FL_VFS_ALL;
++			break;
+ 		default:
+ 			errtryhelp(EXIT_FAILURE);
+ 		}
+diff --git a/misc-utils/findmnt.h b/misc-utils/findmnt.h
+index fbaa38e82..9a277b68a 100644
+--- a/misc-utils/findmnt.h
++++ b/misc-utils/findmnt.h
+@@ -19,6 +19,8 @@ enum {
+ 	FL_STRICTTARGET = (1 << 15),
+ 	FL_VERBOSE	= (1 << 16),
+ 
++	FL_VFS_ALL	= (1 << 19),
++
+ 	/* basic table settings */
+ 	FL_ASCII	= (1 << 20),
+ 	FL_RAW		= (1 << 21),
+-- 
+2.31.1
+

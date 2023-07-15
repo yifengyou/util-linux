@@ -1,0 +1,146 @@
+From c4caa5b973f9cdb4c43edea3c32cda62cdf15b3b Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Thu, 1 Oct 2020 11:20:01 +0200
+Subject: [PATCH 44/55] chrt: don't restrict --reset-on-fork, add more info to
+ man page
+
+The flag works (= kernel accepts it) for all scheduling policies
+and sched_getattr() returns the flag for all policies.
+
+There is no reason for userspace to be more smart than kernel or hide
+the flag when it prints sched_getattr()/sched_getscheduler() results.
+
+ # chrt -v --reset-on-fork --batch 0 /bin/true
+ pid 1315019's new scheduling policy: SCHED_BATCH|SCHED_RESET_ON_FORK
+
+ # chrt -v --reset-on-fork --fifo 1 /bin/true
+ pid 1315055's new scheduling policy: SCHED_FIFO|SCHED_RESET_ON_FORK
+
+ # chrt -v --reset-on-fork --deadline --sched-period 10000 0 /bin/true
+ pid 1315182's new scheduling policy: SCHED_DEADLINE|SCHED_RESET_ON_FORK
+
+ # chrt -v --reset-on-fork --idle 0 /bin/true
+ pid 1315247's new scheduling policy: SCHED_IDLE|SCHED_RESET_ON_FORK
+
+ # chrt -v --reset-on-fork --rr 1 /bin/true
+ pid 1315275's new scheduling policy: SCHED_RR|SCHED_RESET_ON_FORK
+
+ # chrt -v --reset-on-fork --other 0 /bin/true
+ pid 1315311's new scheduling policy: SCHED_OTHER|SCHED_RESET_ON_FORK
+
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1884194
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ schedutils/chrt.1 | 32 ++++++++++++++++++++++++++++----
+ schedutils/chrt.c | 18 +++++-------------
+ 2 files changed, 33 insertions(+), 17 deletions(-)
+
+diff --git a/schedutils/chrt.1 b/schedutils/chrt.1
+index 4b8b1e9da..a9adfb316 100644
+--- a/schedutils/chrt.1
++++ b/schedutils/chrt.1
+@@ -92,13 +92,37 @@ Specifies period parameter for SCHED_DEADLINE policy (Linux-specific).
+ Specifies deadline parameter for SCHED_DEADLINE policy (Linux-specific).
+ .TP
+ \fB\-R\fR, \fB\-\-reset-on-fork\fR
+-Add
++Use
+ .B SCHED_RESET_ON_FORK
+-flag to the
++or
++.B SCHED_FLAG_RESET_ON_FORK
++flag.  Linux-specific, supported since 2.6.31.
++
++Each thread has a reset-on-fork scheduling flag.  When this flag is set, children created by
++.BR fork (2)
++do not inherit privileged scheduling policies.  After the reset-on-fork flag has been enabled,
++it can be reset only if the thread has the
++.BR CAP_SYS_NICE
++capability.  This flag is disabled in child processes created by
++.BR fork (2).
++
++More precisely, if the reset-on-fork flag is set,
++the following rules apply for subsequently created children:
++.RS
++.IP * 3
++If the calling thread has a scheduling policy of
+ .B SCHED_FIFO
+ or
+-.B SCHED_RR
+-scheduling policy (Linux-specific, supported since 2.6.31).
++.BR SCHED_RR ,
++the policy is reset to
++.BR SCHED_OTHER
++in child processes.
++.IP *
++If the calling process has a negative nice value,
++the nice value is reset to zero in child processes.
++.RE
++
++
+ 
+ .SH OPTIONS
+ .TP
+diff --git a/schedutils/chrt.c b/schedutils/chrt.c
+index 15556bbad..2a6f1e151 100644
+--- a/schedutils/chrt.c
++++ b/schedutils/chrt.c
+@@ -152,7 +152,7 @@ static void __attribute__((__noreturn__)) usage(void)
+ 
+ 	fputs(USAGE_SEPARATOR, out);
+ 	fputs(_("Scheduling options:\n"), out);
+-	fputs(_(" -R, --reset-on-fork       set SCHED_RESET_ON_FORK for FIFO or RR\n"), out);
++	fputs(_(" -R, --reset-on-fork       set reset-on-fork flag\n"), out);
+ 	fputs(_(" -T, --sched-runtime <ns>  runtime parameter for DEADLINE\n"), out);
+ 	fputs(_(" -P, --sched-period <ns>   period parameter for DEADLINE\n"), out);
+ 	fputs(_(" -D, --sched-deadline <ns> deadline parameter for DEADLINE\n"), out);
+@@ -173,22 +173,19 @@ static void __attribute__((__noreturn__)) usage(void)
+ 
+ static const char *get_policy_name(int policy)
+ {
++#ifdef SCHED_RESET_ON_FORK
++	policy &= ~SCHED_RESET_ON_FORK;
++#endif
+ 	switch (policy) {
+ 	case SCHED_OTHER:
+ 		return "SCHED_OTHER";
+ 	case SCHED_FIFO:
+-#ifdef SCHED_RESET_ON_FORK
+-	case SCHED_FIFO | SCHED_RESET_ON_FORK:
+-#endif
+ 		return "SCHED_FIFO";
+ #ifdef SCHED_IDLE
+ 	case SCHED_IDLE:
+ 		return "SCHED_IDLE";
+ #endif
+ 	case SCHED_RR:
+-#ifdef SCHED_RESET_ON_FORK
+-	case SCHED_RR | SCHED_RESET_ON_FORK:
+-#endif
+ 		return "SCHED_RR";
+ #ifdef SCHED_BATCH
+ 	case SCHED_BATCH:
+@@ -257,7 +254,7 @@ fallback:
+ 		else
+ 			prio = sp.sched_priority;
+ # ifdef SCHED_RESET_ON_FORK
+-		if (policy == (SCHED_FIFO|SCHED_RESET_ON_FORK) || policy == (SCHED_BATCH|SCHED_RESET_ON_FORK))
++		if (policy & SCHED_RESET_ON_FORK)
+ 			reset_on_fork = 1;
+ # endif
+ 	}
+@@ -515,11 +512,6 @@ int main(int argc, char **argv)
+ 	errno = 0;
+ 	ctl->priority = strtos32_or_err(argv[optind], _("invalid priority argument"));
+ 
+-#ifdef SCHED_RESET_ON_FORK
+-	if (ctl->reset_on_fork && ctl->policy != SCHED_FIFO && ctl->policy != SCHED_RR)
+-		errx(EXIT_FAILURE, _("--reset-on-fork option is supported for "
+-				     "SCHED_FIFO and SCHED_RR policies only"));
+-#endif
+ #ifdef SCHED_DEADLINE
+ 	if ((ctl->runtime || ctl->deadline || ctl->period) && ctl->policy != SCHED_DEADLINE)
+ 		errx(EXIT_FAILURE, _("--sched-{runtime,deadline,period} options "
+-- 
+2.29.2
+

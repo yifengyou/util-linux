@@ -1,0 +1,39 @@
+From 7ce318610afcbb793e438332687c2f09844a86c2 Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Thu, 25 Nov 2021 11:54:11 +0100
+Subject: [PATCH 71/74] libblkid: check UBI char device name
+
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=2026511
+Upstream: http://github.com/util-linux/util-linux/commit/7eb6d9ce4526b968e30f7e538cbbbdf9938e5891
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ libblkid/src/probe.c | 12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/libblkid/src/probe.c b/libblkid/src/probe.c
+index a6dc8416a..49a62c47f 100644
+--- a/libblkid/src/probe.c
++++ b/libblkid/src/probe.c
+@@ -915,9 +915,17 @@ int blkid_probe_set_device(blkid_probe pr, int fd,
+ 			DBG(LOWPROBE, ul_debug("failed to get device size"));
+ 			goto err;
+ 		}
+-	} else if (S_ISCHR(sb.st_mode))
++	} else if (S_ISCHR(sb.st_mode)) {
++		char buf[PATH_MAX];
++
++		if (!sysfs_chrdev_devno_to_devname(sb.st_rdev, buf, sizeof(buf))
++		    || strncmp(buf, "ubi", 3) != 0) {
++			DBG(LOWPROBE, ul_debug("no UBI char device"));
++			errno = EINVAL;
++			goto err;
++		}
+ 		devsiz = 1;		/* UBI devices are char... */
+-	else if (S_ISREG(sb.st_mode))
++	} else if (S_ISREG(sb.st_mode))
+ 		devsiz = sb.st_size;	/* regular file */
+ 
+ 	pr->size = size ? (uint64_t)size : devsiz;
+-- 
+2.31.1
+

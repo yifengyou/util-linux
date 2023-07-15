@@ -1,0 +1,91 @@
+From 60f97394878d8b540ee6a4fb9c9edaae2f90d0d0 Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Tue, 17 Dec 2019 18:10:31 +0100
+Subject: [PATCH] tests: (fdisk) make sure we use the same sizes for MD devices
+
+It seems on some kernels MD can return error if the devices in RAID
+have different size
+
+ # mdadm -q --create /dev/md8 --chunk=64 --level=0 --raid-devices=2 /dev/sda1 /dev/sda2
+ mdadm: RUN_ARRAY failed: Unknown error 524
+
+ # dmesg
+ ...
+ [ 1485.148435] md/raid0:md8: cannot assemble multi-zone RAID0 with default_layout setting
+ [ 1485.152306] md/raid0: please set raid.default_layout to 1 or 2
+ [ 1485.154050] md: pers->run() failed ...
+ [ 1485.154104] md: md8 stopped.
+
+Reference: https://bugzilla.redhat.com/show_bug.cgi?id=1784534
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ tests/expected/fdisk/align-512-4K-md | 12 ++++++------
+ tests/ts/fdisk/align-512-4K-md       |  4 ++--
+ 2 files changed, 8 insertions(+), 8 deletions(-)
+
+diff --git a/tests/expected/fdisk/align-512-4K-md b/tests/expected/fdisk/align-512-4K-md
+index caca03154..3690c04c2 100644
+--- a/tests/expected/fdisk/align-512-4K-md
++++ b/tests/expected/fdisk/align-512-4K-md
+@@ -16,7 +16,7 @@ Created a new <removed>.
+ Command (m for help): Partition type
+    p   primary (1 primary, 0 extended, 3 free)
+    e   extended (container for logical partitions)
+-Select (default p): Partition number (2-4, default 2): First sector (43008-102399, default 43008): Last sector, +sectors or +size{K,M,G,T,P} (43008-102399, default 102399): 
++Select (default p): Partition number (2-4, default 2): First sector (51199-102399, default 51200): Last sector, +sectors or +size{K,M,G,T,P} (51200-102399, default 102399): 
+ Created a new <removed>.
+ 
+ Command (m for help): Disk <removed>: 50 MiB, 52428800 bytes, 102400 sectors
+@@ -27,8 +27,8 @@ Disklabel type: dos
+ Disk identifier: <removed>
+ 
+ Device     Boot Start    End Sectors Size Id Type
+-<removed>1        2048  43007   40960  20M 83 Linux
+-<removed>2       43008 102399   59392  29M 83 Linux
++<removed>1        2048  51198   49151  24M 83 Linux
++<removed>2       51200 100350   49151  24M 83 Linux
+ 
+ Command (m for help): The partition table has been altered.
+ Calling ioctl() to re-read partition table.
+@@ -49,16 +49,16 @@ Created a new <removed>.
+ Command (m for help): Partition type
+    p   primary (0 primary, 0 extended, 4 free)
+    e   extended (container for logical partitions)
+-Select (default p): Partition number (1-4, default 1): First sector (2048-100095, default 2048): Last sector, +sectors or +size{K,M,G,T,P} (2048-100095, default 100095): 
++Select (default p): Partition number (1-4, default 1): First sector (2048-97791, default 2048): Last sector, +sectors or +size{K,M,G,T,P} (2048-97791, default 97791): 
+ Created a new <removed>.
+ 
+ Command (m for help): Partition type
+    p   primary (1 primary, 0 extended, 3 free)
+    e   extended (container for logical partitions)
+-Select (default p): Partition number (2-4, default 2): First sector (22528-100095, default 22528): Last sector, +sectors or +size{K,M,G,T,P} (22528-100095, default 100095): 
++Select (default p): Partition number (2-4, default 2): First sector (22528-97791, default 22528): Last sector, +sectors or +size{K,M,G,T,P} (22528-97791, default 97791): 
+ Created a new <removed>.
+ 
+-Command (m for help): Disk <removed>: 48.9 MiB, 51249152 bytes, 100096 sectors
++Command (m for help): Disk <removed>: 47.8 MiB, 50069504 bytes, 97792 sectors
+ Units: sectors of 1 * 512 = 512 bytes
+ Sector size (logical/physical): 512 bytes / 4096 bytes
+ I/O size (minimum/optimal): 65536 bytes / <removed> bytes
+diff --git a/tests/ts/fdisk/align-512-4K-md b/tests/ts/fdisk/align-512-4K-md
+index 7f60a654f..68aaff0b7 100755
+--- a/tests/ts/fdisk/align-512-4K-md
++++ b/tests/ts/fdisk/align-512-4K-md
+@@ -41,12 +41,12 @@ n
+ p
+ 1
+ 
+-+20M
+++49150
+ n
+ p
+ 2
+ 
+-
+++49150
+ p
+ w
+ q
+-- 
+2.21.0
+

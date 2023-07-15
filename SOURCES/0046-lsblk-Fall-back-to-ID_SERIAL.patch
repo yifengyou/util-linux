@@ -1,0 +1,59 @@
+From afe6545483a881ccde41dcaa6718c71c74b38d7b Mon Sep 17 00:00:00 2001
+From: Sven Wiltink <swiltink@transip.nl>
+Date: Fri, 1 May 2020 16:35:40 +0200
+Subject: [PATCH 46/55] lsblk: Fall back to ID_SERIAL
+
+In some cases ID_SERIAL_SHORT isn't provided by libudev, but ID_SERIAL
+is. An example of this are virtio devices. See the output of udevadm
+info:
+P: /devices/pci0000:00/0000:00:06.0/virtio2/block/vdb
+N: vdb
+S: disk/by-id/virtio-08491434ee711d3420e9
+S: disk/by-path/pci-0000:00:06.0
+S: disk/by-path/virtio-pci-0000:00:06.0
+E: DEVLINKS=/dev/disk/by-id/virtio-08491434ee711d3420e9 /dev/disk/by-path/pci-0000:00:06.0 /dev/disk/by-path/virtio-pci-0000:00:06.0
+E: DEVNAME=/dev/vdb
+E: DEVPATH=/devices/pci0000:00/0000:00:06.0/virtio2/block/vdb
+E: DEVTYPE=disk
+E: ID_PATH=pci-0000:00:06.0
+E: ID_PATH_TAG=pci-0000_00_06_0
+E: ID_SERIAL=08491434ee711d3420e9
+E: MAJOR=252
+E: MINOR=16
+E: SUBSYSTEM=block
+E: TAGS=:systemd:
+E: USEC_INITIALIZED=1403804
+
+[RHEL-8 backport: add ID_SERIAL and also ID_SCSI_SERIAL to be compatible with upstream]
+
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1861670
+Upstream: http://github.com/karelzak/util-linux/commit/e81d0f80068086147434fa947a4f723c00318772
+Upstream: http://github.com/karelzak/util-linux/commit/de6c2a4aec140e6086e278688d97f4655ced1a9a
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ misc-utils/lsblk.c | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/misc-utils/lsblk.c b/misc-utils/lsblk.c
+index ae97f9f05..d0369d3e7 100644
+--- a/misc-utils/lsblk.c
++++ b/misc-utils/lsblk.c
+@@ -567,8 +567,14 @@ static int get_udev_properties(struct blkdev_cxt *cxt)
+ 		if (data)
+ 			cxt->wwn = xstrdup(data);
+ 
+-		if ((data = udev_device_get_property_value(dev, "ID_SERIAL_SHORT")))
++		data = udev_device_get_property_value(dev, "ID_SCSI_SERIAL");
++		if (!data)
++			data = udev_device_get_property_value(dev, "ID_SERIAL_SHORT");
++		if (!data)
++			data = udev_device_get_property_value(dev, "ID_SERIAL");
++		if (data)
+ 			cxt->serial = xstrdup(data);
++
+ 		udev_device_unref(dev);
+ 		cxt->probed = 1;
+ 		DBG(DEV, ul_debugobj(cxt, "%s: found udev properties", cxt->name));
+-- 
+2.29.2
+

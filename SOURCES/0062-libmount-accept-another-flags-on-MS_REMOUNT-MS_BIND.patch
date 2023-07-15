@@ -1,0 +1,120 @@
+From 8681757ee08361d78e4c74da8abae9d6df8623e7 Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Mon, 28 May 2018 15:46:28 +0200
+Subject: [PATCH 62/63] libmount: accept another flags on MS_REMOUNT|MS_BIND
+
+The current libmount MS_REMOUNT|MS_BIND support is restricted to
+MS_RDONLY (read-only bind mount). This is too restrictive as Linux
+kernel supports bind-remount for arbitrary VFS flags.
+
+After this update you can use
+
+ # mount /dev/sdc1 /mnt/A
+ # mount --bind -onosuid,noexec /mnt/A /mnt/B
+
+ # findmnt /dev/sdc1 -oTARGET,SOURCE,FS-OPTIONS,VFS-OPTIONS
+ TARGET SOURCE    FS-OPTIONS                 VFS-OPTIONS
+ /mnt/A /dev/sdc1 rw,stripe=512,data=ordered rw,relatime
+ /mnt/B /dev/sdc1 rw,stripe=512,data=ordered rw,nosuid,noexec,relatime
+
+The "mount --bind" is composed from two syscalls of course (1st is
+bind, 2nd is bind,remount,nosuid,noexec).
+
+Addresses: https://github.com/karelzak/util-linux/issues/637
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1919529
+Upstream: http://github.com/karelzak/util-linux/commit/e82b77e9696a6dada96a7f3ea3ec20a63e8e7b9e
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ libmount/src/context_mount.c | 22 ++++++++--------------
+ libmount/src/mountP.h        |  3 +++
+ sys-utils/mount.8            |  5 +++--
+ 3 files changed, 14 insertions(+), 16 deletions(-)
+
+diff --git a/libmount/src/context_mount.c b/libmount/src/context_mount.c
+index a6de36178..b88e60507 100644
+--- a/libmount/src/context_mount.c
++++ b/libmount/src/context_mount.c
+@@ -107,22 +107,16 @@ static int init_propagation(struct libmnt_context *cxt)
+ }
+ 
+ /*
+- * add additional mount(2) syscall request to implement "ro,bind", the first regular
+- * mount(2) is the "bind" operation, the second is "remount,ro,bind" call.
+- *
+- * Note that we don't remove "ro" from the first syscall (kernel silently
+- * ignores this flags for bind operation) -- maybe one day kernel will support
+- * read-only binds in one step and then all will be done by the first mount(2) and the
+- * second remount will be noop...
++ * add additional mount(2) syscall request to implement "bind,<flags>", the first regular
++ * mount(2) is the "bind" operation, the second is "remount,bind,<flags>" call.
+  */
+-static int init_robind(struct libmnt_context *cxt)
++static int init_bind_remount(struct libmnt_context *cxt)
+ {
+ 	struct libmnt_addmount *ad;
+ 	int rc;
+ 
+ 	assert(cxt);
+ 	assert(cxt->mountflags & MS_BIND);
+-	assert(cxt->mountflags & MS_RDONLY);
+ 	assert(!(cxt->mountflags & MS_REMOUNT));
+ 
+ 	DBG(CXT, ul_debugobj(cxt, "mount: initialize additional ro,bind mount"));
+@@ -131,9 +125,9 @@ static int init_robind(struct libmnt_context *cxt)
+ 	if (!ad)
+ 		return -ENOMEM;
+ 
+-	ad->mountflags = MS_REMOUNT | MS_BIND | MS_RDONLY;
+-	if (cxt->mountflags & MS_REC)
+-		ad->mountflags |= MS_REC;
++	ad->mountflags = cxt->mountflags;
++	ad->mountflags |= (MS_REMOUNT | MS_BIND);
++
+ 	rc = mnt_context_append_additional_mount(cxt, ad);
+ 	if (rc)
+ 		return rc;
+@@ -254,9 +248,9 @@ static int fix_optstr(struct libmnt_context *cxt)
+ 			return rc;
+ 	}
+ 	if ((cxt->mountflags & MS_BIND)
+-	    && (cxt->mountflags & MS_RDONLY)
++	    && (cxt->mountflags & MNT_BIND_SETTABLE)
+ 	    && !(cxt->mountflags & MS_REMOUNT)) {
+-		rc = init_robind(cxt);
++		rc = init_bind_remount(cxt);
+ 		if (rc)
+ 			return rc;
+ 	}
+diff --git a/libmount/src/mountP.h b/libmount/src/mountP.h
+index 52a238ef3..64a507e61 100644
+--- a/libmount/src/mountP.h
++++ b/libmount/src/mountP.h
+@@ -363,6 +363,9 @@ struct libmnt_context
+ /* default flags */
+ #define MNT_FL_DEFAULT		0
+ 
++/* Flags usable with MS_BIND|MS_REMOUNT */
++#define MNT_BIND_SETTABLE	(MS_NOSUID|MS_NODEV|MS_NOEXEC|MS_NOATIME|MS_NODIRATIME|MS_RELATIME|MS_RDONLY)
++
+ /* lock.c */
+ extern int mnt_lock_use_simplelock(struct libmnt_lock *ml, int enable);
+ 
+diff --git a/sys-utils/mount.8 b/sys-utils/mount.8
+index a4d7de2c0..291e65cb1 100644
+--- a/sys-utils/mount.8
++++ b/sys-utils/mount.8
+@@ -410,8 +410,9 @@ will be writable, but the
+ will be read-only.
+ 
+ It's also possible to change nosuid, nodev, noexec, noatime, nodiratime and
+-relatime VFS entry flags by "remount,bind" operation. It's impossible to change
+-mount options recursively (for example with \fB-o rbind,ro\fR).
++relatime VFS entry flags by "remount,bind" operation.  The another (for example
++filesystem specific flags) are silently ignored.  It's impossible to change mount
++options recursively (for example with \fB-o rbind,ro\fR).
+ 
+ .BR mount (8)
+ since v2.31 ignores the \fBbind\fR flag from
+-- 
+2.31.1
+

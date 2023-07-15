@@ -1,0 +1,31 @@
+From 0717177be22588d4e419de280eccd0eeafb15016 Mon Sep 17 00:00:00 2001
+From: Rupesh Girase <rgirase@redhat.com>
+Date: Thu, 18 Jun 2020 19:17:41 +0530
+Subject: [PATCH] Manual pages: losetup.8: Fix "--direct-io" defaults
+
+"--direct-io" option is "off" by default while configuring
+loop device but it's mentioned "on" in man page.
+
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1848919
+Upstream: http://github.com/karelzak/util-linux/commit/4bee67e2d1a78abc52e89c6eb71f0efc8a278ce9
+Signed-off-by: Rupesh Girase <rgirase@redhat.com>
+---
+ sys-utils/losetup.8 | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sys-utils/losetup.8 b/sys-utils/losetup.8
+index cdb9ed052..c87c231b6 100644
+--- a/sys-utils/losetup.8
++++ b/sys-utils/losetup.8
+@@ -130,7 +130,7 @@ Set up a read-only loop device.
+ .BR \-\-direct\-io [ =on | off ]
+ Enable or disable direct I/O for the backing file.  The optional argument
+ can be either \fBon\fR or \fBoff\fR.  If the argument is omitted, it defaults
+-to \fBon\fR.
++to \fBoff\fR.
+ .TP
+ .BR \-v , " \-\-verbose"
+ Verbose mode.
+-- 
+2.25.4
+

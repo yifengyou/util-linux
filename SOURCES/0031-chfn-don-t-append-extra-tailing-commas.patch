@@ -1,0 +1,43 @@
+From 90d4faece26c328c40336a0e02b875515c503e30 Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Mon, 19 Aug 2019 14:03:07 +0200
+Subject: [PATCH 31/32] chfn: don't append extra tailing commas
+
+ # grep kzak /etc/passwd
+ kzak:x:1000:1000::/home/kzak:/bin/bash
+
+ # chfn kzak
+ ...
+ grep kzak /etc/passwd
+
+old version:
+ kzak:x:1000:1000:Karel Zak,,,,:/home/kzak:/bin/bash
+
+fixed version:
+ kzak:x:1000:1000:Karel Zak:/home/kzak:/bin/bash
+
+Reported-by: Filip Dvorak <fdvorak@redhat.com>
+References: f723cbf544a7eac2927634f2cb6d802437a2d519
+Upstream: http://github.com/karelzak/util-linux/commit/9210c0d225fd808da451d86055bf243a8b47a525
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1743555
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ login-utils/chfn.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/login-utils/chfn.c b/login-utils/chfn.c
+index c5312fa0c..4f32604c5 100644
+--- a/login-utils/chfn.c
++++ b/login-utils/chfn.c
+@@ -377,7 +377,7 @@ static int save_new_data(struct chfn_control *ctl)
+ 			ctl->newf.other);
+ 
+ 	/* remove trailing empty fields (but not subfields of ctl->newf.other) */
+-	if (!ctl->newf.other) {
++	if (!ctl->newf.other || !*ctl->newf.other) {
+ 		while (len > 0 && gecos[len - 1] == ',')
+ 			len--;
+ 		gecos[len] = 0;
+-- 
+2.21.0
+

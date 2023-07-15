@@ -1,0 +1,40 @@
+From 315960fa9a89248e9d56682c1915567d38fef431 Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Thu, 7 Jun 2018 12:05:08 +0200
+Subject: [PATCH 2/6] losetup: keep -f and <devname> mutually exclusive
+
+losetup tries to blindly use specified device as well as search for
+the first free device, the result is:
+
+ # losetup /dev/loop1 -f /tmp/tfile_loop1
+ losetup: /dev/loop1: failed to set up loop device: Invalid argument
+
+fixed version:
+
+ # losetup /dev/loop10 -f img
+ losetup: unexpected arguments
+
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1614364
+Upstream: http://github.com/karelzak/util-linux/commit/c3f5a0f1d47dbc47f6d21da232d4eb1cfb7905db
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ sys-utils/losetup.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/sys-utils/losetup.c b/sys-utils/losetup.c
+index 9c479c02d..e80ceacce 100644
+--- a/sys-utils/losetup.c
++++ b/sys-utils/losetup.c
+@@ -749,6 +749,9 @@ int main(int argc, char **argv)
+ 		 */
+ 		act = A_CREATE;
+ 		file = argv[optind++];
++
++		if (optind < argc)
++			errx(EXIT_FAILURE, _("unexpected arguments"));
+ 	}
+ 
+ 	if (list && !act && optind == argc)
+-- 
+2.14.4
+

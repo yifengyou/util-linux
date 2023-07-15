@@ -1,0 +1,32 @@
+From ebb628f8b6e9564c036fce152f67512e5755dcfc Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Mon, 6 Dec 2021 13:20:37 +0100
+Subject: [PATCH 68/74] fstrim: improve timer setting
+
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1916151
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ sys-utils/fstrim.timer | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/sys-utils/fstrim.timer b/sys-utils/fstrim.timer
+index 3a3762d5c..54b3c18f5 100644
+--- a/sys-utils/fstrim.timer
++++ b/sys-utils/fstrim.timer
+@@ -1,11 +1,13 @@
+ [Unit]
+ Description=Discard unused blocks once a week
+ Documentation=man:fstrim
++ConditionVirtualization=!container
+ 
+ [Timer]
+ OnCalendar=weekly
+ AccuracySec=1h
+ Persistent=true
++RandomizedDelaySec=6000
+ 
+ [Install]
+ WantedBy=timers.target
+-- 
+2.31.1
+

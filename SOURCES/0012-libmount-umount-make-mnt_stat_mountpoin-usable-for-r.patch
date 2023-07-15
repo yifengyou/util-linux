@@ -1,0 +1,33 @@
+From 0afd0613fc738659fb0ff490e4e069366dee4a94 Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Mon, 10 Dec 2018 16:25:08 +0100
+Subject: [PATCH 12/14] libmount: (umount) make mnt_stat_mountpoin() usable for
+ relative paths
+
+ # mount -o loop devicefile /mnt/test
+ # umount devicefile
+ umount: devicefile: not mounted.
+
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1653781
+Upstream: http://github.com/karelzak/util-linux/commit/2859592ecb7b48d47d2e34d589ea35f76e329416
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ libmount/src/utils.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/libmount/src/utils.c b/libmount/src/utils.c
+index fd98d0529..c36187c07 100644
+--- a/libmount/src/utils.c
++++ b/libmount/src/utils.c
+@@ -121,7 +121,7 @@ static int fstype_cmp(const void *v1, const void *v2)
+ int mnt_stat_mountpoint(const char *target, struct stat *st)
+ {
+ #ifdef AT_NO_AUTOMOUNT
+-	return fstatat(-1, target, st, AT_NO_AUTOMOUNT);
++	return fstatat(AT_FDCWD, target, st, AT_NO_AUTOMOUNT);
+ #else
+ 	return stat(target, st);
+ #endif
+-- 
+2.17.2
+

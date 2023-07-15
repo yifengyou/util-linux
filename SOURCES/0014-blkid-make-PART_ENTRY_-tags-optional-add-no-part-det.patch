@@ -1,0 +1,136 @@
+From 64473a830dc93e7fcd246a64bb8389d66f0034b8 Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Thu, 29 Nov 2018 13:21:36 +0100
+Subject: [PATCH 14/14] blkid: make PART_ENTRY_* tags optional (add
+ --no-part-details)
+
+blkid(8) returns information from partition table also for empty
+partitions. This is necessary for example for udev, but it could be
+confusing if you care about on-device content only.
+
+Default:
+ # blkid -p /dev/md0p1; echo $?
+ /dev/md0p1: PART_ENTRY_SCHEME="dos" PART_ENTRY_UUID="6d8796b1-01" PART_ENTRY_TYPE="0x83" PART_ENTRY_NUMBER="1" PART_ENTRY_OFFSET="2048" PART_ENTRY_SIZE="204800" PART_ENTRY_DISK="9:0"
+ 0
+
+With --no-part-details:
+ # blkid -p /dev/md0p1 --no-part-details; echo $?
+ 2
+
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1653413
+Upstream: http://github.com/karelzak/util-linux/commit/5e91d5dd716ebc6144bcb0cabb0ec847a678be9e
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ misc-utils/blkid.8 |  6 +++++-
+ misc-utils/blkid.c | 15 +++++++++++----
+ 2 files changed, 16 insertions(+), 5 deletions(-)
+
+diff --git a/misc-utils/blkid.8 b/misc-utils/blkid.8
+index 13b5edb4d..d1cec1dea 100644
+--- a/misc-utils/blkid.8
++++ b/misc-utils/blkid.8
+@@ -35,6 +35,7 @@ blkid \- locate/print block device attributes
+ .IR list ]
+ .RB [ \-\-usages
+ .IR list ]
++.RB [ \-\-no\-part\-details ]
+ .IR device " ..."
+ 
+ .IP \fBblkid\fR
+@@ -114,6 +115,9 @@ Don't encode non-printing characters.  The non-printing characters are encoded
+ by ^ and M- notation by default.  Note that the \fB\-\-output udev\fR output format uses
+ a different encoding which cannot be disabled.
+ .TP
++\fB\-D\fR, \fB\-\-no\-part\-details\fR 
++Don't print information (PART_ENTRY_* tags) from partition table in low-level probing mode.
++.TP
+ \fB\-g\fR, \fB\-\-garbage\-collect\fR
+ Perform a garbage collection pass on the blkid cache to remove
+ devices which no longer exist.
+@@ -224,7 +228,7 @@ Note that low-level probing also returns information about partition table type
+ (PTTYPE tag) and partitions (PART_ENTRY_* tags). The tag names produced by
+ low-level probing are based on names used internally by libblkid and it may be
+ different than when executed without \fB\-\-probe\fR (for example PART_ENTRY_UUID= vs
+-PARTUUID=).
++PARTUUID=). See also \fB\-\-no\-part\-details\fR.
+ .TP
+ \fB\-s\fR, \fB\-\-match\-tag\fR \fItag\fR
+ For each (specified) device, show only the tags that match
+diff --git a/misc-utils/blkid.c b/misc-utils/blkid.c
+index 4cd85317f..61a6994c2 100644
+--- a/misc-utils/blkid.c
++++ b/misc-utils/blkid.c
+@@ -58,6 +58,7 @@ struct blkid_control {
+ 		lowprobe:1,
+ 		lowprobe_superblocks:1,
+ 		lowprobe_topology:1,
++		no_part_details:1,
+ 		raw_chars:1;
+ };
+ 
+@@ -101,6 +102,7 @@ static void __attribute__((__noreturn__)) usage(void)
+ 	fputs(_(	" -O, --offset <offset>      probe at the given offset\n"), out);
+ 	fputs(_(	" -u, --usages <list>        filter by \"usage\" (e.g. -u filesystem,raid)\n"), out);
+ 	fputs(_(	" -n, --match-types <list>   filter by filesystem type (e.g. -n vfat,ext3)\n"), out);
++	fputs(_(        " -D, --no-part-details      don't print info from partition table\n"), out);
+ 
+ 	fputs(USAGE_SEPARATOR, out);
+ 	printf(USAGE_HELP_OPTIONS(28));
+@@ -444,7 +446,7 @@ done:
+ 	return rc;
+ }
+ 
+-static int lowprobe_superblocks(blkid_probe pr)
++static int lowprobe_superblocks(blkid_probe pr, struct blkid_control *ctl)
+ {
+ 	struct stat st;
+ 	int rc, fd = blkid_probe_get_fd(pr);
+@@ -470,7 +472,8 @@ static int lowprobe_superblocks(blkid_probe pr)
+ 			return 0;	/* partition table detected */
+ 	}
+ 
+-	blkid_probe_set_partitions_flags(pr, BLKID_PARTS_ENTRY_DETAILS);
++	if (!ctl->no_part_details)
++		blkid_probe_set_partitions_flags(pr, BLKID_PARTS_ENTRY_DETAILS);
+ 	blkid_probe_enable_superblocks(pr, 1);
+ 
+ 	return blkid_do_safeprobe(pr);
+@@ -509,7 +512,7 @@ static int lowprobe_device(blkid_probe pr, const char *devname,
+ 	if (ctl->lowprobe_topology)
+ 		rc = lowprobe_topology(pr);
+ 	if (rc >= 0 && ctl->lowprobe_superblocks)
+-		rc = lowprobe_superblocks(pr);
++		rc = lowprobe_superblocks(pr, ctl);
+ 	if (rc < 0)
+ 		goto done;
+ 
+@@ -661,6 +664,7 @@ int main(int argc, char **argv)
+ 	static const struct option longopts[] = {
+ 		{ "cache-file",	      required_argument, NULL, 'c' },
+ 		{ "no-encoding",      no_argument,	 NULL, 'd' },
++		{ "no-part-details",  no_argument,       NULL, 'D' },
+ 		{ "garbage-collect",  no_argument,	 NULL, 'g' },
+ 		{ "output",	      required_argument, NULL, 'o' },
+ 		{ "list-filesystems", no_argument,	 NULL, 'k' },
+@@ -694,7 +698,7 @@ int main(int argc, char **argv)
+ 	strutils_set_exitcode(BLKID_EXIT_OTHER);
+ 
+ 	while ((c = getopt_long (argc, argv,
+-			    "c:dghilL:n:ko:O:ps:S:t:u:U:w:Vv", longopts, NULL)) != -1) {
++			    "c:DdghilL:n:ko:O:ps:S:t:u:U:w:Vv", longopts, NULL)) != -1) {
+ 
+ 		err_exclusive_options(c, NULL, excl, excl_st);
+ 
+@@ -705,6 +709,9 @@ int main(int argc, char **argv)
+ 		case 'd':
+ 			ctl.raw_chars = 1;
+ 			break;
++		case 'D':
++			ctl.no_part_details = 1;
++			break;
+ 		case 'L':
+ 			ctl.eval = 1;
+ 			search_value = xstrdup(optarg);
+-- 
+2.17.2
+

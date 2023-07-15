@@ -1,0 +1,29 @@
+From 7180c1ad36a1f419e20e90ddfad0b2f77d8c018f Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Thu, 2 Jun 2022 16:02:54 +0200
+Subject: libblkid: (mac) make sure block size is large enough [fuzzing]
+
+Upstream: http://github.com/util-linux/util-linux/commit/4e12fbca62be10b09503cecc7507757874043474
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=2060030
+Reported-by: Thibault Guittet <tguittet@redhat.com>
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ libblkid/src/partitions/mac.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/libblkid/src/partitions/mac.c b/libblkid/src/partitions/mac.c
+index 092d31d32..75a558b0a 100644
+--- a/libblkid/src/partitions/mac.c
++++ b/libblkid/src/partitions/mac.c
+@@ -93,6 +93,8 @@ static int probe_mac_pt(blkid_probe pr,
+ 	}
+ 
+ 	block_size = be16_to_cpu(md->block_size);
++	if (block_size < sizeof(struct mac_partition))
++		goto nothing;
+ 
+ 	/* The partition map always begins at physical block 1,
+ 	 * the second block on the disk.
+-- 
+2.36.1
+

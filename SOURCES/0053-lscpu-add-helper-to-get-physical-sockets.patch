@@ -1,0 +1,91 @@
+From 32c4fe66ae9107a7fae556be02c1401e5046071b Mon Sep 17 00:00:00 2001
+From: Masayoshi Mizuma <m.mizuma@jp.fujitsu.com>
+Date: Fri, 11 Sep 2020 09:53:27 -0400
+Subject: [PATCH 53/55] lscpu: add helper to get physical sockets
+
+Add a helper function, get_number_of_physical_sockets_from_dmi(),
+to get physical sockets from DMI table in case of the sysfs for
+cpu topology doesn't have the physical socket information.
+
+get_number_of_physical_sockets_from_dmi() parse the DMI table
+and counts the number of SMBIOS Processor Information (Type04)
+structure.
+
+Note, ARM SBBR v1.0 and newer requires SMBIOS Processor Information
+(Type04). And ARM SBBR v1.2 requires ACPI PPTT which has physical socket
+information. So the helper function is useful for the machine base on
+SBBR v1.0 and v1.1.
+
+Signed-off-by: Masayoshi Mizuma <m.mizuma@jp.fujitsu.com>
+---
+ sys-utils/lscpu-dmi.c | 30 ++++++++++++++++++++++++++++++
+ sys-utils/lscpu.h     |  1 +
+ 2 files changed, 31 insertions(+)
+
+diff --git a/sys-utils/lscpu-dmi.c b/sys-utils/lscpu-dmi.c
+index 9b57fe9e6..31127f48a 100644
+--- a/sys-utils/lscpu-dmi.c
++++ b/sys-utils/lscpu-dmi.c
+@@ -46,6 +46,7 @@ struct dmi_info {
+ 	char *vendor;
+ 	char *product;
+ 	char *manufacturer;
++	int sockets;
+ };
+ 
+ static int checksum(const uint8_t *buf, size_t len)
+@@ -147,6 +148,9 @@ static int parse_dmi_table(uint16_t len, uint16_t num,
+ 				di->manufacturer = dmi_string(&h, data[0x04]);
+ 				di->product = dmi_string(&h, data[0x05]);
+ 				break;
++			case 4:
++				di->sockets++;
++				break;
+ 			default:
+ 				break;
+ 		}
+@@ -323,3 +327,29 @@ done:
+ 	free(buf);
+ 	return rc < 0 ? HYPER_NONE : rc;
+ }
++
++int get_number_of_physical_sockets_from_dmi(void)
++{
++	static char const sys_fw_dmi_tables[] = _PATH_SYS_DMI;
++	struct dmi_info di;
++	struct stat st;
++	uint8_t *data;
++	int rc = -1;
++
++	if (stat(sys_fw_dmi_tables, &st))
++		return rc;
++
++	data = get_mem_chunk(0, st.st_size, sys_fw_dmi_tables);
++	if (!data)
++		return rc;
++
++	memset(&di, 0, sizeof(struct dmi_info));
++	rc = parse_dmi_table(st.st_size, st.st_size/4, data, &di);
++
++	free(data);
++
++	if ((rc < 0) || !di.sockets)
++		return rc;
++	else
++		return di.sockets;
++}
+diff --git a/sys-utils/lscpu.h b/sys-utils/lscpu.h
+index bffa9df60..b190afd21 100644
+--- a/sys-utils/lscpu.h
++++ b/sys-utils/lscpu.h
+@@ -186,6 +186,7 @@ struct lscpu_modifier {
+ };
+ 
+ extern int read_hypervisor_dmi(void);
++extern int get_number_of_physical_sockets_from_dmi(void);
+ extern void arm_cpu_decode(struct lscpu_desc *desc);
+ 
+ #endif /* LSCPU_H */
+-- 
+2.29.2
+

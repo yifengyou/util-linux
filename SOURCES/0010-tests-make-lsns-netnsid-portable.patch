@@ -1,0 +1,81 @@
+From b48e972b3aa32710ed0495c35b2184f5d3ec9eb0 Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Fri, 30 Nov 2018 12:24:15 +0100
+Subject: [PATCH 10/14] tests: make lsns-netnsid portable
+
+It seems ip(8) link-show command does not provide link-netnsid in all
+cases (versions ?). Let's try to use "ip netns list-id" as fallback.
+
+This commit also add possibility to debug the script by $LOG variable.
+
+Addresses: http://bugzilla.redhat.com/show_bug.cgi?id=1656437
+Upstream: http://github.com/karelzak/util-linux/commit/0d79f5805ff2d7651ec70b06753e908cc782857a
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ tests/ts/lsns/netnsid | 26 +++++++++++++++++++++++++-
+ 1 file changed, 25 insertions(+), 1 deletion(-)
+
+diff --git a/tests/ts/lsns/netnsid b/tests/ts/lsns/netnsid
+index 72c14de6c..9d04f28f0 100755
+--- a/tests/ts/lsns/netnsid
++++ b/tests/ts/lsns/netnsid
+@@ -36,6 +36,7 @@ vethb=lsns-vethb
+ NS=LSNS-TEST-NETNSID-NS
+ FIFO=$TS_OUTDIR/FIFO-NETNSID
+ NULL=/dev/null
++LOG=/dev/null #/root/foo.log
+ 
+ function cleanup {
+ 	ip link delete $vetha 2> $NULL || :
+@@ -43,24 +44,47 @@ function cleanup {
+ 	rm -f $FIFO
+ }
+ 
++echo "==Cleanup" >> $LOG
+ cleanup
++
++echo "==Create FIFO" >> $LOG
+ mkfifo $FIFO
+ 
++echo "==Netns ADD" >> $LOG
+ if ip netns add $NS &&
+ 	ip link add name $vetha type veth peer name $vethb &&
+ 	ip link set $vethb netns $NS; then
++    echo "===Netns EXEC" >> $LOG
+     ip netns exec $NS dd if=$FIFO bs=1 count=2 of=$NULL 2> $NULL &
+     PID=$!
++    echo "====PID=$PID" >> $LOG
+ else
+     cleanup
+     ts_skip "failed to initialize"
+ fi
+ {
++    echo "==Write to FIFO" >> $LOG
+     dd if=/dev/zero bs=1 count=1 2> $NULL
+     {
+-	ip -o link show dev $vetha > $NULL
++	echo "===IP output" >> $LOG
++	ip -o link show dev $vetha >> $LOG
++
+ 	IP_ID=$(ip -o link show dev $vetha | sed -ne 's/.* *link-netnsid *\([0-9]*\)/\1/p')
++	echo "====ip show: IP_ID=$IP_ID" >> $LOG
++
++	if [ "x$IP_ID" = "x" ]; then
++		echo "===IP output list id" >> $LOG
++		ip netns list-id >> $LOG
++
++		IP_ID=$(ip netns list-id | awk "/name: $NS/ { print \$2 }")
++		echo "====ip list-id: IP_ID=$IP_ID" >> $LOG
++	fi
++
++	echo "===LSNS output" >> $LOG
++	$TS_CMD_LSNS -o+NETNSID,NSFS --type net >> $LOG
++
+ 	LSNS_ID=$($TS_CMD_LSNS -n -o NETNSID --type net --task $PID | { read VAL; echo $VAL; } )
++	echo "===LSNS_ID=$LSNS_ID" >> $LOG
+     }
+     dd if=/dev/zero bs=1 count=1 2> $NULL
+ } > $FIFO
+-- 
+2.17.2
+

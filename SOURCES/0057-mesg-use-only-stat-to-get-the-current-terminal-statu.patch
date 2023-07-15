@@ -1,0 +1,52 @@
+From 7ad815523618c2a053d28061054a44ae9108ceb0 Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Mon, 12 Apr 2021 09:39:59 +0200
+Subject: [PATCH 57/63] mesg: use only stat() to get the current terminal
+ status
+
+open()+stat() does not work for example after su(1) (from root to
+non-root). It seems better to use only stat() to get the current
+terminal status.
+
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1906157
+Upstream: http://github.com/karelzak/util-linux/commit/c0246ce059503bbc078122a50d564ca36a66f348
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ term-utils/mesg.c | 12 +++++++-----
+ 1 file changed, 7 insertions(+), 5 deletions(-)
+
+diff --git a/term-utils/mesg.c b/term-utils/mesg.c
+index 8714ad1aa..21a4a8581 100644
+--- a/term-utils/mesg.c
++++ b/term-utils/mesg.c
+@@ -123,13 +123,10 @@ int main(int argc, char *argv[])
+ 
+ 	if ((tty = ttyname(STDERR_FILENO)) == NULL)
+ 		err(MESG_EXIT_FAILURE, _("ttyname failed"));
+-	if ((fd = open(tty, O_RDONLY)) < 0)
+-		err(MESG_EXIT_FAILURE, _("cannot open %s"), tty);
+-	if (fstat(fd, &sb))
+-		err(MESG_EXIT_FAILURE, _("stat of %s failed"), tty);
+ 
+ 	if (!*argv) {
+-		close(fd);
++		if (stat(tty, &sb))
++			err(MESG_EXIT_FAILURE, _("stat of %s failed"), tty);
+ 		if (sb.st_mode & (S_IWGRP | S_IWOTH)) {
+ 			puts(_("is y"));
+ 			return IS_ALLOWED;
+@@ -138,6 +135,11 @@ int main(int argc, char *argv[])
+ 		return IS_NOT_ALLOWED;
+ 	}
+ 
++	if ((fd = open(tty, O_RDONLY)) < 0)
++		err(MESG_EXIT_FAILURE, _("cannot open %s"), tty);
++	if (fstat(fd, &sb))
++		err(MESG_EXIT_FAILURE, _("stat of %s failed"), tty);
++
+ 	switch (rpmatch(argv[0])) {
+ 	case RPMATCH_YES:
+ #ifdef USE_TTY_GROUP
+-- 
+2.31.1
+

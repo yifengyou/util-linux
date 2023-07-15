@@ -1,0 +1,28 @@
+From 6f16035b81cd7feca02d6df8eff1bb954ed7e58d Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Tue, 4 Sep 2018 14:30:37 +0200
+Subject: [PATCH 29/32] lscpu: use the first VM from /proc/sysinfo
+
+Addresses: https://github.com/karelzak/util-linux/issues/685
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1739443
+Upstream: http://github.com/karelzak/util-linux/commit/350f5c8df2cb6edbfb5bae95f00a9fff446d236c
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ sys-utils/lscpu.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/sys-utils/lscpu.c b/sys-utils/lscpu.c
+index fd6d63bbf..1aa7bff4d 100644
+--- a/sys-utils/lscpu.c
++++ b/sys-utils/lscpu.c
+@@ -866,6 +866,7 @@ read_hypervisor(struct lscpu_desc *desc, struct lscpu_modifier *mod)
+ 				*(str--) = '\0';
+ 			while ((str = strstr(desc->hypervisor, "  ")))
+ 				memmove(str, str + 1, strlen(str));
++			break;
+ 		}
+ 		fclose(fd);
+ 	}
+-- 
+2.21.0
+

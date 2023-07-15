@@ -1,0 +1,55 @@
+From f435f80b9ae88caf9fe8af2e9b705dc8296ad6f3 Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Mon, 13 Feb 2023 16:22:23 +0100
+Subject: last: use full size of the username
+
+utmp uses 32 bytes for username, last(1) truncates it to 31 when calls getpwnam().
+
+Reported-by: Radka Skvarilova <rskvaril@redhat.com>
+Signed-off-by: Karel Zak <kzak@redhat.com>
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=2160321
+Upstream: http://github.com/util-linux/util-linux/commit/4b646f01600a5efcf16e8e8991010b49b250bdfe
+---
+ login-utils/last.1 | 4 ++++
+ login-utils/last.c | 6 ++++--
+ 2 files changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/login-utils/last.1 b/login-utils/last.1
+index 94b4ed012..9169abd35 100644
+--- a/login-utils/last.1
++++ b/login-utils/last.1
+@@ -178,6 +178,10 @@ files to be used, they can be created with a simple
+ .BR touch (1)
+ command (for example,
+ .IR "touch /var/log/wtmp" ).
++
++The utmp file format uses fixed sizes of strings, which means that very long strings are
++impossible to store in the file and impossible to display by last. The usual limits are 32
++bytes for a user and line name and 256 bytes for a hostname.
+ .SH FILES
+ /var/log/wtmp
+ .br
+diff --git a/login-utils/last.c b/login-utils/last.c
+index 8f7c36984..41ce03894 100644
+--- a/login-utils/last.c
++++ b/login-utils/last.c
+@@ -602,12 +602,14 @@ static int is_phantom(const struct last_control *ctl, struct utmpx *ut)
+ {
+ 	struct passwd *pw;
+ 	char path[sizeof(ut->ut_line) + 16];
++	char user[sizeof(ut->ut_user) + 1];
+ 	int ret = 0;
+ 
+ 	if (ut->ut_tv.tv_sec < ctl->boot_time.tv_sec)
+ 		return 1;
+-	ut->ut_user[sizeof(ut->ut_user) - 1] = '\0';
+-	pw = getpwnam(ut->ut_user);
++
++	mem2strcpy(user, ut->ut_user, sizeof(ut->ut_user), sizeof(user));
++	pw = getpwnam(user);
+ 	if (!pw)
+ 		return 1;
+ 	snprintf(path, sizeof(path), "/proc/%u/loginuid", ut->ut_pid);
+-- 
+2.39.1
+

@@ -1,0 +1,68 @@
+From 54e3d1414e1a031d6f635f8fcbe273eecfd65560 Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Tue, 5 Feb 2019 12:06:00 +0100
+Subject: [PATCH 39/40] col: make flush_line() a little bit robust
+
+The code is horrible. The core of the problem are signed integers
+and no check for the limits.
+
+This patch fixes c->c_column = cur_col; where c_column is "short"
+and "cur_col" is int. Let's use "int" for all the variables. It's
+really not perfect as for bigger lines it can segfault again...
+
+The patch also removes some unnecessary static variables.
+
+Upstream: http://github.com/karelzak/util-linux/commit/004356f05018e3bfcaddd2652846659a4d8481f3
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1803753
+Addresses: https://github.com/karelzak/util-linux/issues/749
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ text-utils/col.c | 11 ++++++-----
+ 1 file changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/text-utils/col.c b/text-utils/col.c
+index 3d9e15d26..c2f8db64d 100644
+--- a/text-utils/col.c
++++ b/text-utils/col.c
+@@ -88,7 +88,7 @@ typedef char CSET;
+ typedef struct char_str {
+ #define	CS_NORMAL	1
+ #define	CS_ALTERNATE	2
+-	short		c_column;	/* column character is in */
++	int		c_column;	/* column character is in */
+ 	CSET		c_set;		/* character set (currently only 2) */
+ 	wchar_t		c_char;		/* character in question */
+ 	int		c_width;	/* character width */
+@@ -476,8 +476,9 @@ void flush_line(LINE *l)
+ 	nchars = l->l_line_len;
+ 
+ 	if (l->l_needs_sort) {
+-		static CHAR *sorted;
+-		static int count_size, *count, i, save, sorted_size, tot;
++		static CHAR *sorted = NULL;
++		static int count_size = 0, *count = NULL, sorted_size = 0;
++		int i, tot;
+ 
+ 		/*
+ 		 * Do an O(n) sort on l->l_line by column being careful to
+@@ -494,7 +495,7 @@ void flush_line(LINE *l)
+ 			    (unsigned)sizeof(int) * count_size);
+ 		}
+ 		memset(count, 0, sizeof(int) * l->l_max_col + 1);
+-		for (i = nchars, c = l->l_line; --i >= 0; c++)
++		for (i = nchars, c = l->l_line; c && --i >= 0; c++)
+ 			count[c->c_column]++;
+ 
+ 		/*
+@@ -502,7 +503,7 @@ void flush_line(LINE *l)
+ 		 * indices into new line.
+ 		 */
+ 		for (tot = 0, i = 0; i <= l->l_max_col; i++) {
+-			save = count[i];
++			int save = count[i];
+ 			count[i] = tot;
+ 			tot += save;
+ 		}
+-- 
+2.25.4
+

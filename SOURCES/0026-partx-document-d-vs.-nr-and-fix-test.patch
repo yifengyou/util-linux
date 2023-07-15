@@ -1,0 +1,59 @@
+From 5a9269c019f9cb0b2d54444501beb74663670693 Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Wed, 21 Aug 2019 13:42:22 +0200
+Subject: [PATCH 26/26] partx: document -d vs. --nr and fix test
+
+The commit ab025087f91b66ee8e23a16bc49eb0d9bd421d65 has disabled error
+message, but unfortunately it keeps wrong return code. This has been fixed
+by commit 53ae7d60cfeacd4e87bfe6fcc015b58b78ef4555.
+
+This commit add hit about it to docs and fix regression test too.
+
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1739179
+Upstream: http://github.com/karelzak/util-linux/commit/5200aa99d27e084b514e8b035db32f39b49562a3
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ disk-utils/partx.8   | 5 ++++-
+ tests/ts/partx/partx | 9 +++++++--
+ 2 files changed, 11 insertions(+), 3 deletions(-)
+
+diff --git a/disk-utils/partx.8 b/disk-utils/partx.8
+index af7313cb9..c6bbbae42 100644
+--- a/disk-utils/partx.8
++++ b/disk-utils/partx.8
+@@ -53,7 +53,10 @@ Add the specified partitions, or read the disk and add all partitions.
+ Print the SIZE column in bytes rather than in human-readable format.
+ .TP
+ .BR \-d , " \-\-delete"
+-Delete the specified partitions or all partitions.
++Delete the specified partitions or all partitions.  It is not error to
++remove non-existing partitions, so this option is possible to use together with
++large \fB\-\-nr\fR ranges without care about the current partitions set on
++the device.
+ .TP
+ .BR \-g , " \-\-noheadings"
+ Do not print a header line with \fB\-\-show\fR or \fB\-\-raw\fR.
+diff --git a/tests/ts/partx/partx b/tests/ts/partx/partx
+index b21dc44ef..84c286a94 100755
+--- a/tests/ts/partx/partx
++++ b/tests/ts/partx/partx
+@@ -137,9 +137,14 @@ udevadm settle
+ ts_init_subtest "delete-non-existent"
+ #attempt to remove it again
+ {
++	# remove non-existing partitions (ENXIO) is not error
++	#
++	# see ab025087f91b66ee8e23a16bc49eb0d9bd421d65 and
++	#     53ae7d60cfeacd4e87bfe6fcc015b58b78ef4555
++	#
+ 	$TS_CMD_PARTX -d --nr $PARTS $TS_DEVICE &&
+-		echo "partx failed: removed non-existing partition" ||
+-		echo "partx: OK"
++		echo "partx: OK" ||
++		echo "partx failed: removed non-existing partition"
+ } >$TS_OUTPUT 2>&1
+ ts_finalize_subtest
+ 
+-- 
+2.21.0
+

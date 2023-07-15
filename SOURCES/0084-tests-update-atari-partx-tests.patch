@@ -1,0 +1,55 @@
+From cf74ece6486dabfd4b84c90435348c04ff72ef54 Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Tue, 13 Oct 2020 18:34:39 +0200
+Subject: tests: update atari partx tests
+
+Upstream: http://github.com/util-linux/util-linux/commit/017c0308c7d3b0d84bfc11e5863220bc32d640ba
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=2060030
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ tests/expected/partx/partx-image-atari-icd     |  7 -------
+ tests/expected/partx/partx-image-atari-primary |  2 ++
+ tests/expected/partx/partx-image-atari-xgm     | 10 +++-------
+ 3 files changed, 5 insertions(+), 14 deletions(-)
+ delete mode 100644 tests/expected/partx/partx-image-atari-icd
+ create mode 100644 tests/expected/partx/partx-image-atari-primary
+
+diff --git a/tests/expected/partx/partx-image-atari-icd b/tests/expected/partx/partx-image-atari-icd
+deleted file mode 100644
+index 8677dff03..000000000
+--- a/tests/expected/partx/partx-image-atari-icd
++++ /dev/null
+@@ -1,7 +0,0 @@
+-NR START   END SECTORS   SIZE NAME UUID
+- 1    65  4096    4032     2M      
+- 2  4097  5000     904   452K      
+- 4 12289 16384    4096     2M      
+- 5  5002  7000    1999 999.5K      
+- 6  7003 10240    3238   1.6M      
+- 7 10241 12288    2048     1M      
+diff --git a/tests/expected/partx/partx-image-atari-primary b/tests/expected/partx/partx-image-atari-primary
+new file mode 100644
+index 000000000..044d319be
+--- /dev/null
++++ b/tests/expected/partx/partx-image-atari-primary
+@@ -0,0 +1,2 @@
++NR START   END SECTORS SIZE NAME UUID
++ 1     2 10239   10238   5M      
+diff --git a/tests/expected/partx/partx-image-atari-xgm b/tests/expected/partx/partx-image-atari-xgm
+index 248d6a56a..557327c04 100644
+--- a/tests/expected/partx/partx-image-atari-xgm
++++ b/tests/expected/partx/partx-image-atari-xgm
+@@ -1,7 +1,3 @@
+-NR START   END SECTORS   SIZE NAME UUID
+- 1    65  4096    4032     2M      
+- 2  4097  5000     904   452K      
+- 3  5002  7000    1999 999.5K      
+- 4  7003 10240    3238   1.6M      
+- 5 10241 12288    2048     1M      
+- 6 12289 16384    4096     2M      
++NR START   END SECTORS SIZE NAME UUID
++ 1     2    10       9 4.5K      
++ 2    14 10239   10226   5M      
+-- 
+2.36.1
+

@@ -1,0 +1,66 @@
+From 9e92f2ff939a885b70d3a5d20e8c94f6e41e821b Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Tue, 5 Mar 2019 11:06:41 +0100
+Subject: [PATCH 19/19] tests: add --noskip-commands
+
+The default is SKIP missing commands on --use-system-commands, but
+with --noskip-commands the test will FAIL.
+
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1681062
+Upstream: http://github.com/karelzak/util-linux/commit/7c90efa384cbb2ace873e2b90e8cc396a1719535
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ tests/functions.sh | 9 ++++++++-
+ tests/run.sh       | 2 ++
+ 2 files changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/tests/functions.sh b/tests/functions.sh
+index ab607c4ce..0605a1320 100644
+--- a/tests/functions.sh
++++ b/tests/functions.sh
+@@ -85,7 +85,13 @@ function ts_check_test_command {
+ 	*)
+ 		# just command names (e.g. --use-system-commands)
+ 		local cmd=$1
+-		type "$cmd" >/dev/null 2>&1 || ts_skip "missing in PATH: $cmd"
++		type "$cmd" >/dev/null 2>&1
++	        if [ $? -ne 0 ]; then
++			if [ "$TS_NOSKIP_COMMANDS" = "yes" ]; then
++				ts_failed "missing in PATH: $cmd"
++			fi
++			ts_skip "missing in PATH: $cmd"
++		fi
+ 		;;
+ 	esac
+ }
+@@ -301,6 +307,7 @@ function ts_init_env {
+ 
+ 	ts_init_core_env
+ 
++	TS_NOSKIP_COMMANDS=$(ts_has_option "noskip-commands" "$*")
+ 	TS_VERBOSE=$(ts_has_option "verbose" "$*")
+ 	TS_SHOWDIFF=$(ts_has_option "show-diff" "$*")
+ 	TS_PARALLEL=$(ts_has_option "parallel" "$*")
+diff --git a/tests/run.sh b/tests/run.sh
+index 28f8ee25a..e8328cc5d 100755
+--- a/tests/run.sh
++++ b/tests/run.sh
+@@ -65,6 +65,7 @@ while [ -n "$1" ]; do
+ 	--show-diff |\
+ 	--verbose  |\
+ 	--skip-loopdevs |\
++	--noskip-commands |\
+ 	--parsable)
+ 		# these options are simply forwarded to the test scripts
+ 		OPTS="$OPTS $1"
+@@ -113,6 +114,7 @@ while [ -n "$1" ]; do
+ 		echo "  --show-diff           show diff from failed tests"
+ 		echo "  --nonroot             ignore test suite if user is root"
+ 		echo "  --use-system-commands use PATH rather than builddir"
++		echo "  --noskip-commands     fail on missing commands"
+ 		echo "  --srcdir=<path>       autotools top source directory"
+ 		echo "  --builddir=<path>     autotools top build directory"
+ 		echo "  --parallel=<num>      number of parallel test jobs, default: num cpus"
+-- 
+2.20.1
+

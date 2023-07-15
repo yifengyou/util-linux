@@ -1,0 +1,55 @@
+From 4859f218a3be0ae90908fc0ddbef498a784e9b24 Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Fri, 10 Aug 2018 16:27:41 +0200
+Subject: [PATCH 3/6] mount: add ext4 to some places to the man page
+
+Upstream: http://github.com/karelzak/util-linux/commit/d901e4275f7c1899518bab3b34424c90af8dc35e
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1614852
+---
+ sys-utils/mount.8 | 9 +++++----
+ 1 file changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/sys-utils/mount.8 b/sys-utils/mount.8
+index 562ecb187..1cc792979 100644
+--- a/sys-utils/mount.8
++++ b/sys-utils/mount.8
+@@ -880,7 +880,7 @@ output for extN filesystems).
+ The following options apply to any filesystem that is being
+ mounted (but not every filesystem actually honors them \(en e.g.\&, the
+ .B sync
+-option today has an effect only for ext2, ext3, fat, vfat and ufs):
++option today has an effect only for ext2, ext3, ext4, fat, vfat and ufs):
+ 
+ .TP
+ .B async
+@@ -916,7 +916,8 @@ The
+ .B context=
+ option is useful when mounting filesystems that do not support
+ extended attributes, such as a floppy or hard disk formatted with VFAT, or
+-systems that are not normally running under SELinux, such as an ext3 formatted
++systems that are not normally running under SELinux, such as an ext3 or ext4 formatted
++
+ disk from a non-SELinux workstation.  You can also use
+ .B context=
+ on filesystems you do not trust, such as a floppy.  It also helps in compatibility with
+@@ -2314,7 +2315,7 @@ not specified or the filesystem is known for libblkid, for example:
+ .sp
+ .B "mount /tmp/disk.img /mnt"
+ .sp
+-.B "mount \-t ext3 /tmp/disk.img /mnt"
++.B "mount \-t ext4 /tmp/disk.img /mnt"
+ .sp
+ .RE
+ This type of mount knows about three options, namely
+@@ -2462,7 +2463,7 @@ It is possible for a corrupted filesystem to cause a crash.
+ .PP
+ Some Linux filesystems don't support
+ .BR "\-o sync " nor " \-o dirsync"
+-(the ext2, ext3, fat and vfat filesystems
++(the ext2, ext3, ext4, fat and vfat filesystems
+ .I do
+ support synchronous updates (a la BSD) when mounted with the
+ .B sync
+-- 
+2.14.4
+

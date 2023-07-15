@@ -1,0 +1,80 @@
+From 3fd5c8e78a9758a6fc9310485d2428e300ad3b63 Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Thu, 11 Jun 2020 10:55:25 +0200
+Subject: [PATCH 35/40] tests: mark MD tests with metadata v0.90 as KNOWN-FAIL
+
+metadata v0.90 is deprecated thing and unsupported to create by some new
+mdadm versions. It's possible to assemble this array (with
+default_layout=1 on modprobe raid0), but impossible to create a new
+one.
+
+Upstream: http://github.com/karelzak/util-linux/commit/4ae96cf77b36660255d5870a4209480bbec47902
+Upstream: http://github.com/karelzak/util-linux/commit/7519c3edab120b14623931d5ddb16fdc6e7cad5d
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1826251
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ tests/ts/blkid/md-raid0-whole  | 3 +++
+ tests/ts/blkid/md-raid1-part   | 3 +++
+ tests/ts/blkid/md-raid1-whole  | 3 +++
+ tests/ts/fdisk/align-512-4K-md | 3 +++
+ 4 files changed, 12 insertions(+)
+
+diff --git a/tests/ts/blkid/md-raid0-whole b/tests/ts/blkid/md-raid0-whole
+index 45c6ee55b..1f3fc2634 100755
+--- a/tests/ts/blkid/md-raid0-whole
++++ b/tests/ts/blkid/md-raid0-whole
+@@ -29,6 +29,9 @@ ts_skip_nonroot
+ ts_check_losetup
+ ts_check_prog "mdadm"
+ 
++# rhbz#182625: It can't create new raid0 with metadata 0.90 from mdadm-4.1-12.
++TS_KNOWN_FAIL="yes"                                         
++
+ ts_log "Initialize devices"
+ IMGNAME="${TS_OUTDIR}/${TS_TESTNAME}"
+ 
+diff --git a/tests/ts/blkid/md-raid1-part b/tests/ts/blkid/md-raid1-part
+index 3fa6395b0..3d42aadb8 100755
+--- a/tests/ts/blkid/md-raid1-part
++++ b/tests/ts/blkid/md-raid1-part
+@@ -28,6 +28,9 @@ ts_check_test_command "$TS_CMD_BLKID"
+ ts_skip_nonroot
+ ts_check_prog "mdadm"
+ 
++# rhbz#182625: It can't create new raid0 with metadata 0.90 from mdadm-4.1-12.
++TS_KNOWN_FAIL="yes"                                         
++
+ # set global variable TS_DEVICE
+ ts_scsi_debug_init dev_size_mb=51 sector_size=512
+ 
+diff --git a/tests/ts/blkid/md-raid1-whole b/tests/ts/blkid/md-raid1-whole
+index ddf4a6934..6eba9cc8e 100755
+--- a/tests/ts/blkid/md-raid1-whole
++++ b/tests/ts/blkid/md-raid1-whole
+@@ -29,6 +29,9 @@ ts_skip_nonroot
+ ts_check_losetup
+ ts_check_prog "mdadm"
+ 
++# rhbz#182625: It can't create new raid0 with metadata 0.90 from mdadm-4.1-12.
++TS_KNOWN_FAIL="yes"
++
+ ts_log "Initialize devices"
+ IMGNAME="${TS_OUTDIR}/${TS_TESTNAME}"
+ 
+diff --git a/tests/ts/fdisk/align-512-4K-md b/tests/ts/fdisk/align-512-4K-md
+index 68aaff0b7..0a8e09bc1 100755
+--- a/tests/ts/fdisk/align-512-4K-md
++++ b/tests/ts/fdisk/align-512-4K-md
+@@ -31,6 +31,9 @@ ts_check_test_command "$TS_CMD_FDISK"
+ ts_skip_nonroot
+ ts_check_prog "mdadm"
+ 
++# rhbz#182625: It can't create new raid0 with metadata 0.90 from mdadm-4.1-12.
++TS_KNOWN_FAIL="yes"
++
+ # set global variable TS_DEVICE
+ ts_scsi_debug_init dev_size_mb=50 sector_size=512 physblk_exp=3
+ DEVNAME=$(basename $TS_DEVICE)
+-- 
+2.25.4
+

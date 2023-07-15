@@ -1,0 +1,28 @@
+From 2193cfc5ee3f417e276c181fe39455646399153b Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Mon, 17 Sep 2018 16:22:14 +0200
+Subject: [PATCH 56/56] tests: update sfdisk resize
+
+Upstream: http://github.com/karelzak/util-linux/commit/a1b463d94afdae65ab5bfb192a58f1ceeb13679a
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1900498
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ tests/expected/sfdisk/dos-resize-logical | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tests/expected/sfdisk/dos-resize-logical b/tests/expected/sfdisk/dos-resize-logical
+index 9ceb9a327..a427ff010 100644
+--- a/tests/expected/sfdisk/dos-resize-logical
++++ b/tests/expected/sfdisk/dos-resize-logical
+@@ -26,7 +26,7 @@ Device     Boot Start   End Sectors Size Id Type
+ <removed>3        6144  8191    2048   1M 83 Linux
+ <removed>4        8192 28671   20480  10M  5 Extended
+ <removed>5       10240 12287    2048   1M 83 Linux
+-<removed>6       14336 26623   12288   6M 83 Linux
++<removed>6       14336 28671   14336   7M 83 Linux
+ 
+ The partition table has been altered.
+ Calling ioctl() to re-read partition table.
+-- 
+2.29.2
+

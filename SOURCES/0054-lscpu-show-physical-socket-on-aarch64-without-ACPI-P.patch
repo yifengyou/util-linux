@@ -1,0 +1,51 @@
+From ac6651b2bc599af707ccc96936bb028d31c1aea8 Mon Sep 17 00:00:00 2001
+From: Masayoshi Mizuma <m.mizuma@jp.fujitsu.com>
+Date: Fri, 11 Sep 2020 09:53:28 -0400
+Subject: [PATCH 54/56] lscpu: show physical socket on aarch64 without ACPI
+ PPTT
+
+Show the number of physical socket even if the sysfs doesn't have
+the physical socket information.
+Note, lscpu cannot show the number of socket info for unprivileged
+users because it needs to access the DMI table.
+
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1883056
+Signed-off-by: Masayoshi Mizuma <m.mizuma@jp.fujitsu.com>
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ sys-utils/lscpu.c | 6 ++++--
+ sys-utils/lscpu.h | 1 -
+ 2 files changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/sys-utils/lscpu.c b/sys-utils/lscpu.c
+index a8b448fa0..dc6dc97c3 100644
+--- a/sys-utils/lscpu.c
++++ b/sys-utils/lscpu.c
+@@ -1850,8 +1850,10 @@ print_summary(struct lscpu_desc *desc, struct lscpu_modifier *mod)
+ 			}
+ 		} else {
+ 			if (desc->is_cluster) {
+-				if (desc->nr_socket_on_cluster > 0)
+-					add_summary_n(tb, _("Socket(s):"), desc->nr_socket_on_cluster);
++				int sockets = get_number_of_physical_sockets_from_dmi();
++
++				if (sockets > 0)
++					add_summary_n(tb, _("Socket(s):"), sockets);
+ 				else
+ 					add_summary_s(tb, _("Socket(s):"), "-");
+ 
+diff --git a/sys-utils/lscpu.h b/sys-utils/lscpu.h
+index b190afd21..1aef8202d 100644
+--- a/sys-utils/lscpu.h
++++ b/sys-utils/lscpu.h
+@@ -160,7 +160,6 @@ struct lscpu_desc {
+ 	int		physcoresperchip;	/* Physical cores per chip */
+ 
+ 	int		is_cluster;
+-	int		nr_socket_on_cluster;
+ };
+ 
+ enum {
+-- 
+2.29.2
+

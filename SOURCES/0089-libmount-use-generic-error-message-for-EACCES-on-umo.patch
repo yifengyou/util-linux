@@ -1,0 +1,27 @@
+From 301dc3d820434cbc65a7b5565d448e417293fcfb Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Thu, 2 Feb 2023 14:47:04 +0100
+Subject: libmount: use generic error message for EACCES on umount
+
+Signed-off-by: Karel Zak <kzak@redhat.com>
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=2149394
+---
+ libmount/src/context_umount.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/libmount/src/context_umount.c b/libmount/src/context_umount.c
+index 240ec3be6..23aaae395 100644
+--- a/libmount/src/context_umount.c
++++ b/libmount/src/context_umount.c
+@@ -1123,7 +1123,7 @@ int mnt_context_get_umount_excode(
+ 			snprintf(buf, bufsz, _("must be superuser to unmount"));
+ 			break;
+ 		case EACCES:
+-			snprintf(buf, bufsz, _("block devices are not permitted on filesystem"));
++			snprintf(buf, bufsz, _("filesystem not accessible"));
+ 			break;
+ 		default:
+ 			return mnt_context_get_generic_excode(syserr, buf, bufsz,_("umount(2) system call failed: %m"));
+-- 
+2.39.1
+

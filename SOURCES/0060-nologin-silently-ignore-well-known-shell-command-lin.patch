@@ -1,0 +1,124 @@
+From bfa7d299f8a497a835bc250bd765094ee06b8a01 Mon Sep 17 00:00:00 2001
+From: Sami Kerola <kerolasa@iki.fi>
+Date: Sun, 17 Nov 2019 08:33:04 +0000
+Subject: [PATCH 60/63] nologin: silently ignore well known shell command-line
+ options
+
+nologin is typically used in /etc/passwd as a shell replacement.  Hence it
+is reasonable to ignore well known command-line options silently to avoid
+unwanted ugly error messages.
+
+Addresses: https://github.com/karelzak/util-linux/issues/895
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1922299
+Upstream: http://github.com/karelzak/util-linux/commit/beb61b07c20ab902fec883a4bd087c45d2742dea
+Requested-by: Lennart Poettering <lennart@poettering.net>
+Signed-off-by: Sami Kerola <kerolasa@iki.fi>
+---
+ login-utils/nologin.8 | 32 ++++++++++++++++++++++++--------
+ login-utils/nologin.c | 33 ++++++++++++++++++++++++++++-----
+ 2 files changed, 52 insertions(+), 13 deletions(-)
+
+diff --git a/login-utils/nologin.8 b/login-utils/nologin.8
+index 9389a86c6..d3882e2b1 100644
+--- a/login-utils/nologin.8
++++ b/login-utils/nologin.8
+@@ -1,4 +1,4 @@
+-.TH NOLOGIN 8 "September 2013" "util-linux" "System Administration"
++.TH NOLOGIN 8 "November 2019" "util-linux" "System Administration"
+ .SH NAME
+ nologin \- politely refuse a login
+ .SH SYNOPSIS
+@@ -18,13 +18,29 @@ The exit code returned by
+ is always 1.
+ .PP
+ .SH OPTIONS
+-
+-
+-.TP
+-.IP "\fB\-c\fR, \fB\-\-command\fR \fIcommand\fR"
+-Ignored. For compatibility with
+-.I su -c "command" - user
+-that would cause error otherwise.
++\fB\-c\fR, \fB\-\-command\fR \fIcommand\fR
++.br
++\fB\-\-init-file\fR
++.br
++\fB\-i\fR \fB\-\-interactive\fR
++.br
++\fB\-\-init-file\fR \fIfile\fR
++.br
++\fB\-i\fR, \fB\-\-interactive\fR
++.br
++\fB\-l\fR, \fB\-\-login\fR
++.br
++\fB\-\-noprofile\fR
++.br
++\fB\-\-norc\fR
++.br
++\fB\-\-posix\fR
++.br
++\fB\-\-rcfile\fR \fIfile\fR
++.br
++\fB\-r\fR, \fB\-\-restricted\fR
++.IP
++These shell command-line options are ignored to avoid nologin error.
+ .IP "\fB\-h\fR, \fB\-\-help\fR"
+ Display help text and exit.
+ .IP "\fB-V\fR, \fB\-\-version\fR"
+diff --git a/login-utils/nologin.c b/login-utils/nologin.c
+index 293f568c1..567a9a2ca 100644
+--- a/login-utils/nologin.c
++++ b/login-utils/nologin.c
+@@ -41,10 +41,25 @@ int main(int argc, char *argv[])
+ {
+ 	int c, fd = -1;
+ 	struct stat st;
++	enum {
++		OPT_INIT_FILE = CHAR_MAX + 1,
++		OPT_NOPROFILE,
++		OPT_NORC,
++		OPT_POSIX,
++		OPT_RCFILE
++	};
+ 	static const struct option longopts[] = {
+-		{ "command", required_argument, NULL, 'c' },
+-		{ "help",    0, NULL, 'h' },
+-		{ "version", 0, NULL, 'V' },
++		{ "command",     required_argument, NULL, 'c'           },
++		{ "init-file",   required_argument, NULL, OPT_INIT_FILE },
++		{ "interactive", no_argument,       NULL, 'i'           },
++		{ "login",       no_argument,       NULL, 'l'           },
++		{ "noprofile",   no_argument,       NULL, OPT_NOPROFILE },
++		{ "norc",        no_argument,       NULL, OPT_NORC      },
++		{ "posix",       no_argument,       NULL, OPT_POSIX     },
++		{ "rcfile",      required_argument, NULL, OPT_RCFILE    },
++		{ "restricted",  no_argument,       NULL, 'r'           },
++		{ "help",        no_argument,       NULL, 'h'           },
++		{ "version",     no_argument,       NULL, 'V'           },
+ 		{ NULL, 0, NULL, 0 }
+ 	};
+ 
+@@ -52,10 +67,18 @@ int main(int argc, char *argv[])
+ 	bindtextdomain(PACKAGE, LOCALEDIR);
+ 	textdomain(PACKAGE);
+ 
+-	while ((c = getopt_long(argc, argv, "c:hV", longopts, NULL)) != -1) {
++	while ((c = getopt_long(argc, argv, "c:ilrhV", longopts, NULL)) != -1) {
+ 		switch (c) {
+ 		case 'c':
+-			/* Ignore the command, just don't print unknown option error. */
++		case OPT_INIT_FILE:
++		case 'i':
++		case 'l':
++		case OPT_NOPROFILE:
++		case OPT_NORC:
++		case OPT_POSIX:
++		case OPT_RCFILE:
++		case 'r':
++			/* Ignore well known shell command-line options */
+ 			break;
+ 		case 'h':
+ 			usage();
+-- 
+2.31.1
+

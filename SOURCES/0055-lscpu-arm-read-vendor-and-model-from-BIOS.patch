@@ -1,0 +1,137 @@
+From 7089a63d03b35743de533686906c451b917d0909 Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Wed, 16 Dec 2020 13:08:51 +0100
+Subject: [PATCH 55/56] lscpu: (arm) read vendor and model from BIOS
+
+This patch backports the current upstream code to read CPU vendor and
+model name from BIOS.
+
+Upstream: http://github.com/karelzak/util-linux/commit/8014104bea78f6f82cb82e16329b562e60ecdc87
+Upstream: http://github.com/karelzak/util-linux/commit/367c85c472869b75eaf770d4be0b360e30710b95
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1883056
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1882740
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ sys-utils/lscpu-dmi.c | 44 +++++++++++++++++++++++++++++++++++++++++++
+ sys-utils/lscpu.c     |  7 +++++++
+ sys-utils/lscpu.h     |  3 +++
+ 3 files changed, 54 insertions(+)
+
+diff --git a/sys-utils/lscpu-dmi.c b/sys-utils/lscpu-dmi.c
+index 31127f48a..3bdd7dcb2 100644
+--- a/sys-utils/lscpu-dmi.c
++++ b/sys-utils/lscpu-dmi.c
+@@ -28,6 +28,7 @@
+ #include <stdio.h>
+ 
+ #include "lscpu.h"
++#include "all-io.h"
+ 
+ #define _PATH_SYS_DMI	 "/sys/firmware/dmi/tables/DMI"
+ 
+@@ -353,3 +354,46 @@ int get_number_of_physical_sockets_from_dmi(void)
+ 	else
+ 		return di.sockets;
+ }
++
++
++#define _PATH_SYS_DMI_TYPE4   "/sys/firmware/dmi/entries/4-0/raw"
++#define PROC_MFR_OFFSET		0x07
++#define PROC_VERSION_OFFSET	0x10
++
++/*
++ * Use firmware to get human readable names
++ */
++int arm_smbios_decode(struct lscpu_desc *desc)
++{
++	uint8_t data[8192];
++	char buf[128], *str;
++	struct dmi_header h;
++	int fd;
++	ssize_t rs;
++
++	fd = open(_PATH_SYS_DMI_TYPE4, O_RDONLY);
++	if (fd < 0)
++		return fd;
++
++	rs = read_all(fd, (char *) data, 8192);
++	close(fd);
++
++	if (rs == -1)
++		return -1;
++
++	to_dmi_header(&h, data);
++
++	str = dmi_string(&h, data[PROC_MFR_OFFSET]);
++	if (str) {
++		xstrncpy(buf, str, 127);
++		desc->bios_vendor = xstrdup(buf);
++	}
++
++	str = dmi_string(&h, data[PROC_VERSION_OFFSET]);
++	if (str) {
++		xstrncpy(buf, str, 127);
++		desc->bios_modelname = xstrdup(buf);
++	}
++
++	return 0;
++}
+diff --git a/sys-utils/lscpu.c b/sys-utils/lscpu.c
+index dc6dc97c3..70a797dd6 100644
+--- a/sys-utils/lscpu.c
++++ b/sys-utils/lscpu.c
+@@ -1868,6 +1868,8 @@ print_summary(struct lscpu_desc *desc, struct lscpu_modifier *mod)
+ 		add_summary_n(tb, _("NUMA node(s):"), desc->nnodes);
+ 	if (desc->vendor)
+ 		add_summary_s(tb, _("Vendor ID:"), desc->vendor);
++	if (desc->bios_vendor)
++		add_summary_s(tb, _("BIOS Vendor ID:"), desc->bios_vendor);
+ 	if (desc->machinetype)
+ 		add_summary_s(tb, _("Machine type:"), desc->machinetype);
+ 	if (desc->family)
+@@ -1876,6 +1878,8 @@ print_summary(struct lscpu_desc *desc, struct lscpu_modifier *mod)
+ 		add_summary_s(tb, _("Model:"), desc->revision ? desc->revision : desc->model);
+ 	if (desc->modelname || desc->cpu)
+ 		add_summary_s(tb, _("Model name:"), desc->cpu ? desc->cpu : desc->modelname);
++	if (desc->bios_modelname)
++		add_summary_s(tb, _("BIOS Model name:"), desc->bios_modelname);
+ 	if (desc->stepping)
+ 		add_summary_s(tb, _("Stepping:"), desc->stepping);
+ 	if (desc->mhz)
+@@ -2109,6 +2113,9 @@ int main(int argc, char *argv[])
+ 
+ 	read_nodes(desc);
+ 	read_hypervisor(desc, mod);
++
++	if (mod->system == SYSTEM_LIVE)
++		arm_smbios_decode(desc);
+ 	arm_cpu_decode(desc);
+ 
+ 
+diff --git a/sys-utils/lscpu.h b/sys-utils/lscpu.h
+index 1aef8202d..802719eeb 100644
+--- a/sys-utils/lscpu.h
++++ b/sys-utils/lscpu.h
+@@ -79,10 +79,12 @@ struct polarization_modes {
+ struct lscpu_desc {
+ 	char	*arch;
+ 	char	*vendor;
++	char	*bios_vendor;	/* aarch64 */
+ 	char	*machinetype;	/* s390 */
+ 	char	*family;
+ 	char	*model;
+ 	char	*modelname;
++	char	*bios_modelname; /* aarch64 */
+ 	char	*revision;  /* alternative for model (ppc) */
+ 	char	*cpu;       /* alternative for modelname (ppc, sparc) */
+ 	char	*virtflag;	/* virtualization flag (vmx, svm) */
+@@ -187,5 +189,6 @@ struct lscpu_modifier {
+ extern int read_hypervisor_dmi(void);
+ extern int get_number_of_physical_sockets_from_dmi(void);
+ extern void arm_cpu_decode(struct lscpu_desc *desc);
++extern int arm_smbios_decode(struct lscpu_desc *desc);
+ 
+ #endif /* LSCPU_H */
+-- 
+2.29.2
+

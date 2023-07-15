@@ -1,0 +1,63 @@
+From 90783d6294351229efdee5469dd8cd08d0057731 Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Thu, 25 Nov 2021 11:54:26 +0100
+Subject: [PATCH 72/74] blkid: check device type and name before probe
+
+For calls "blkid /dev/*", it seems better to check the
+device type and name before we open the device in libblkid.
+
+Upstream: http://github.com/util-linux/util-linux/commit/64cfe6ac37631a6347bd4005c72dd2d37e737f5e
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=2026511
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ misc-utils/blkid.c | 27 +++++++++++++++++++++++++--
+ 1 file changed, 25 insertions(+), 2 deletions(-)
+
+diff --git a/misc-utils/blkid.c b/misc-utils/blkid.c
+index 61a6994c2..bd4ce4a39 100644
+--- a/misc-utils/blkid.c
++++ b/misc-utils/blkid.c
+@@ -46,6 +46,8 @@
+ #define XALLOC_EXIT_CODE    BLKID_EXIT_OTHER    /* x.*alloc(), xstrndup() */
+ #include "xalloc.h"
+ 
++#include "sysfs.h"
++
+ struct blkid_control {
+ 	int output;
+ 	uintmax_t offset;
+@@ -813,8 +815,29 @@ int main(int argc, char **argv)
+ 	/* The rest of the args are device names */
+ 	if (optind < argc) {
+ 		devices = xcalloc(argc - optind, sizeof(char *));
+-		while (optind < argc)
+-			devices[numdev++] = argv[optind++];
++		while (optind < argc) {
++			char *dev = argv[optind++];
++			struct stat sb;
++
++			if (stat(dev, &sb) != 0)
++				continue;
++			else if (S_ISBLK(sb.st_mode))
++				;
++			else if (S_ISREG(sb.st_mode))
++				;
++			else if (S_ISCHR(sb.st_mode)) {
++				char buf[PATH_MAX];
++
++				if (!sysfs_chrdev_devno_to_devname(
++						sb.st_rdev, buf, sizeof(buf)))
++					continue;
++				if (strncmp(buf, "ubi", 3) != 0)
++					continue;
++			} else
++				continue;
++
++			devices[numdev++] = dev;
++		}
+ 	}
+ 
+ 	/* convert LABEL/UUID lookup to evaluate request */
+-- 
+2.31.1
+

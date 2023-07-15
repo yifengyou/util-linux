@@ -1,0 +1,41 @@
+From be5e6b14db3cdd09dab711572116d7ee39344875 Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Wed, 21 Aug 2019 10:51:18 +0200
+Subject: [PATCH 25/26] partx: don't report ENXIO as error on -d
+
+The errno ENXIO should be ignored, unfortunately the current code uses
+variable 'rc' for ioctl return code as well as for final del_parts()
+return value. So, failed ioctl (which should be ignored) affects all
+del_parts() status.
+
+  # modprobe scsi_debug dev_size_mb=100
+  # partx  -d --nr 1-1024 /dev/sdc; echo $?
+  1
+
+The device dos not contains any partitions, so 0 return code is
+expected in this case.
+
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1739179
+Upstream: http://github.com/karelzak/util-linux/commit/53ae7d60cfeacd4e87bfe6fcc015b58b78ef4555
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ disk-utils/partx.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/disk-utils/partx.c b/disk-utils/partx.c
+index e3443ea80..f3dcc9007 100644
+--- a/disk-utils/partx.c
++++ b/disk-utils/partx.c
+@@ -327,8 +327,7 @@ static int del_parts(int fd, const char *device, dev_t devno,
+ 	}
+ 
+ 	for (i = lower; i <= upper; i++) {
+-		rc = partx_del_partition(fd, i);
+-		if (rc == 0) {
++		if (partx_del_partition(fd, i) == 0) {
+ 			if (verbose)
+ 				printf(_("%s: partition #%d removed\n"), device, i);
+ 			continue;
+-- 
+2.21.0
+

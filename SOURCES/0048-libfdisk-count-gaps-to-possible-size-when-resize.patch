@@ -1,0 +1,33 @@
+From b3c5c1f39db58b057bb581f1d3bebcbeedeee1cb Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Mon, 17 Sep 2018 11:58:50 +0200
+Subject: [PATCH 48/55] libfdisk: count gaps to possible size when resize
+
+The current code counts only partition sizes when it counts possible
+space, but we have gaps between the partitions. It seems better to
+count all based on offsets rather than sizes.
+
+Addresses: https://github.com/karelzak/util-linux/issues/693
+Upstream: http://github.com/karelzak/util-linux/commit/2f35c1ead621f42f32f7777232568cb03185b473
+Addresses: https://bugzilla.redhat.com/show_bug.cgi?id=1900498
+Signed-off-by: Karel Zak <kzak@redhat.com>
+---
+ libfdisk/src/partition.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/libfdisk/src/partition.c b/libfdisk/src/partition.c
+index a790dc9c9..ebcf6bf5c 100644
+--- a/libfdisk/src/partition.c
++++ b/libfdisk/src/partition.c
+@@ -1113,7 +1113,7 @@ static int resize_get_last_possible(
+ 			break;
+ 		} else {
+ 			last = pa;
+-			*maxsz += pa->size;
++			*maxsz = pa->size - (start - pa->start);
+ 			DBG(TAB, ul_debugobj(tb, "  new max=%ju (last updated)", (uintmax_t) *maxsz));
+ 		}
+ 	}
+-- 
+2.29.2
+
